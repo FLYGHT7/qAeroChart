@@ -737,7 +737,14 @@ class QAeroChartDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
             
             from .core.profile_chart_geometry import ProfileChartGeometry
             # Use the same default VE as runtime population (10x) for preview
-            geometry = ProfileChartGeometry(origin_point, vertical_exaggeration=10.0)
+            # Determine direction sign from current runway direction
+            dir_text = form.lineEdit_direction.text().strip() if hasattr(form, 'lineEdit_direction') else ""
+            try:
+                rwy_num = int(''.join(ch for ch in dir_text if ch.isdigit())[:2] or 0)
+            except Exception:
+                rwy_num = 0
+            dir_sign = -1 if rwy_num and rwy_num <= 18 else 1
+            geometry = ProfileChartGeometry(origin_point, vertical_exaggeration=10.0, horizontal_direction=dir_sign)
             
             # Profile polyline
             profile_line = geometry.create_profile_line(profile_points)

@@ -986,7 +986,16 @@ class LayerManager:
             ve = float(config.get('style', {}).get('vertical_exaggeration', 10.0))
         except Exception:
             ve = 10.0
-        geometry = ProfileChartGeometry(origin_point, vertical_exaggeration=ve)
+        # Determine horizontal drawing direction based on runway direction
+        dir_text = str(runway.get('direction', '')).strip()
+        try:
+            # Extract numeric runway designator (first two digits)
+            rwy_num = int(''.join(ch for ch in dir_text if ch.isdigit())[:2] or 0)
+        except Exception:
+            rwy_num = 0
+        # If RWY direction <= 18 then draw right→left (dir_sign = -1), else left→right
+        dir_sign = -1 if rwy_num and rwy_num <= 18 else 1
+        geometry = ProfileChartGeometry(origin_point, vertical_exaggeration=ve, horizontal_direction=dir_sign)
         
         # BATCH OPERATIONS: Collect all features first, then add in bulk
         point_features = []
