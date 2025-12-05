@@ -24,7 +24,7 @@
 import os
 
 from qgis.PyQt import QtWidgets, uic
-from qgis.PyQt.QtCore import pyqtSignal, Qt
+from qgis.PyQt.QtCore import pyqtSignal, Qt, QItemSelectionModel
 from qgis.PyQt.QtWidgets import QTableWidgetItem, QFileDialog, QMessageBox
 from qgis.core import Qgis, QgsPointXY
 from qgis.utils import iface
@@ -130,6 +130,11 @@ class QAeroChartDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
         
         if hasattr(self.profile_form_widget, 'btn_remove_point'):
             self.profile_form_widget.btn_remove_point.clicked.connect(self._on_remove_row)
+        # Row reorder
+        if hasattr(self.profile_form_widget, 'btn_move_up'):
+            self.profile_form_widget.btn_move_up.clicked.connect(self._on_move_row_up)
+        if hasattr(self.profile_form_widget, 'btn_move_down'):
+            self.profile_form_widget.btn_move_down.clicked.connect(self._on_move_row_down)
         
         # Configuration save/load
         if hasattr(self.profile_form_widget, 'btn_save_config'):
@@ -430,6 +435,73 @@ class QAeroChartDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
         table.setItem(row_position, 2, QTableWidgetItem(elevation))
         table.setItem(row_position, 3, QTableWidgetItem(moca))
         table.setItem(row_position, 4, QTableWidgetItem(notes))
+
+    def _swap_rows(self, table, row_a, row_b):
+        """Swap content between two rows in the points table."""
+        if row_a < 0 or row_b < 0:
+            return
+        if row_a == row_b:
+            return
+        col_count = table.columnCount()
+        # Capture items
+        row_a_items = []
+        row_b_items = []
+        for c in range(col_count):
+            row_a_items.append(table.takeItem(row_a, c))
+            row_b_items.append(table.takeItem(row_b, c))
+        # Put back swapped
+        for c in range(col_count):
+            table.setItem(row_a, c, row_b_items[c])
+            table.setItem(row_b, c, row_a_items[c])
+
+    def _on_move_row_up(self):
+        """Move selected row(s) up, preserving order."""
+        table = self.profile_form_widget.tableWidget_points
+        selected = sorted({idx.row() for idx in table.selectedIndexes()})
+        if not selected:
+            iface.messageBar().pushMessage(
+                "No Selection",
+                "Select one or more rows to move.",
+                level=Qgis.Warning,
+                duration=3
+            )
+            return
+        # Move each selected row up; start from smallest to avoid double-swapping
+        for r in selected:
+            if r > 0:
+                self._swap_rows(table, r, r - 1)
+        # Reselect moved rows at new positions
+        table.clearSelection()
+        for r in selected:
+            new_r = max(0, r - 1)
+            for c in range(table.columnCount()):
+                idx = table.model().index(new_r, c)
+                table.selectionModel().select(idx, QItemSelectionModel.Select)
+
+    def _on_move_row_down(self):
+        """Move selected row(s) down, preserving order."""
+        table = self.profile_form_widget.tableWidget_points
+        row_count = table.rowCount()
+        selected = sorted({idx.row() for idx in table.selectedIndexes()}, reverse=True)
+        if not selected:
+            iface.messageBar().pushMessage(
+                "No Selection",
+                "Select one or more rows to move.",
+                level=Qgis.Warning,
+                duration=3
+            )
+            return
+        # Move each selected row down; start from largest to avoid double-swapping
+        for r in selected:
+            if r < row_count - 1:
+                self._swap_rows(table, r, r + 1)
+        # Reselect moved rows at new positions
+        table.clearSelection()
+        for r in selected:
+            new_r = min(row_count - 1, r + 1)
+            for c in range(table.columnCount()):
+                idx = table.model().index(new_r, c)
+                table.selectionModel().select(idx, QItemSelectionModel.Select)
     
     # ========== Configuration Save/Load Methods ==========
     
