@@ -71,6 +71,12 @@ class QAeroChartDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
         
         # Connect list selection
         self.listWidgetProfiles.itemSelectionChanged.connect(self._on_profile_selection_changed)
+        # F2 to rename selected profile
+        try:
+            self._rename_shortcut = QShortcut(QKeySequence(Qt.Key_F2), self.listWidgetProfiles)
+            self._rename_shortcut.activated.connect(self.rename_selected_profile)
+        except Exception:
+            pass
         
         # Start on menu page
         self.stackedWidget.setCurrentIndex(0)
@@ -166,6 +172,9 @@ class QAeroChartDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
     
     def _set_default_runway_values(self):
         """Set default values for runway parameters to speed up testing."""
+        # Default profile name if user doesn't enter one yet
+        if hasattr(self.profile_form_widget, 'lineEdit_profile_name'):
+            self.profile_form_widget.lineEdit_profile_name.setText("Profile 07")
         # Set default runway direction (matching typical instrument approach)
         if hasattr(self.profile_form_widget, 'lineEdit_direction'):
             self.profile_form_widget.lineEdit_direction.setText("07")
@@ -259,6 +268,8 @@ class QAeroChartDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
         self.reference_point = None
         if hasattr(self.profile_form_widget, 'lineEdit_reference'):
             self.profile_form_widget.lineEdit_reference.clear()
+        if hasattr(self.profile_form_widget, 'lineEdit_profile_name'):
+            self.profile_form_widget.lineEdit_profile_name.clear()
         
         # Clear table and add default rows
         if hasattr(self.profile_form_widget, 'tableWidget_points'):
@@ -302,6 +313,16 @@ class QAeroChartDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
         
         # Load configuration into form
         self._populate_form_from_config(config)
+        # Also load display name into form's name field if present
+        try:
+            profiles = self.profile_manager.get_all_profiles()
+            for p in profiles:
+                if p.get('id') == profile_id:
+                    if hasattr(self.profile_form_widget, 'lineEdit_profile_name'):
+                        self.profile_form_widget.lineEdit_profile_name.setText(p.get('name', ''))
+                    break
+        except Exception:
+            pass
         
         # Store profile ID for updating
         self.current_profile_id = profile_id
@@ -654,6 +675,67 @@ class QAeroChartDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
         
         config_version = config.get("version", "1.0")
         print(f"PLUGIN qAeroChart: Loaded {len(profile_points)} profile points from config v{config_version}")
+
+    def rename_selected_profile(self):
+        """Trigger rename for the currently selected profile (F2)."""
+        selected_items = self.listWidgetProfiles.selectedItems()
+        if not selected_items:
+            iface.messageBar().pushMessage(
+                "No Selection",
+                "Select a single profile to rename.",
+                level=Qgis.Warning,
+                duration=3
+            )
+            return
+        # Only rename the first selected (consistent with typical F2 behavior)
+        item = selected_items[0]
+        profile_id = item.data(Qt.UserRole)
+        if not profile_id:
+            return
+
+        # Current name
+        current_name = None
+        try:
+            profiles = self.profile_manager.get_all_profiles()
+            for p in profiles:
+                if p.get('id') == profile_id:
+                    current_name = p.get('name', '')
+                    break
+        except Exception:
+            current_name = item.text()
+
+        # Ask user for new name
+        new_name, ok = QInputDialog.getText(self, "Rename Profile", "New name:", text=current_name or "")
+        if not ok:
+            return
+        new_name = new_name.strip()
+        if not new_name:
+            iface.messageBar().pushMessage(
+                "Invalid Name",
+                "Profile name cannot be empty.",
+                level=Qgis.Warning,
+                duration=3
+            )
+            return
+
+        # Update config and metadata with the new name
+        config = self.profile_manager.get_profile(profile_id)
+        if not config:
+            iface.messageBar().pushMessage(
+                "Error",
+                "Could not load profile configuration to rename.",
+                level=Qgis.Critical,
+                duration=3
+            )
+            return
+        self.profile_manager.update_profile(profile_id, new_name, config)
+        self._refresh_profile_list()
+        iface.messageBar().pushMessage(
+            "Profile Renamed",
+            f"Renamed to '{new_name}'.",
+            level=Qgis.Info,
+            duration=3
+        )
     
     def create_profile(self):
         """Create profile from the form data."""
@@ -663,9 +745,13 @@ class QAeroChartDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
         config = self._build_config_from_form()
         
         if config:
-            # Generate profile name from runway direction
-            runway = config.get('runway', {})
-            profile_name = f"Profile {runway.get('direction', 'N/A')}"
+            # Determine profile name (prefer explicit name field)
+            profile_name = None
+            if hasattr(self.profile_form_widget, 'lineEdit_profile_name'):
+                profile_name = self.profile_form_widget.lineEdit_profile_name.text().strip()
+            if not profile_name:
+                runway = config.get('runway', {})
+                profile_name = f"Profile {runway.get('direction', 'N/A')}"
             
             # If editing existing profile, update it; otherwise create new
             if hasattr(self, 'current_profile_id') and self.current_profile_id:
@@ -689,6 +775,12 @@ class QAeroChartDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
                 
                 # Reset current profile ID
                 self.current_profile_id = None
+                # Clear name for next entry
+                try:
+                    if hasattr(self.profile_form_widget, 'lineEdit_profile_name'):
+                        self.profile_form_widget.lineEdit_profile_name.setText("")
+                except Exception:
+                    pass
                 
                 # KEEP FORM OPEN - Don't go back to menu
                 # User can click "Back to Menu" if they want, or create another profile

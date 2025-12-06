@@ -17,6 +17,22 @@
    <property name="spacing">
     <number>6</number>
    </property>
+     <item>
+      <widget class="QGroupBox" name="groupBox_profile_name">
+       <property name="title">
+        <string>Profile Name</string>
+       </property>
+       <layout class="QHBoxLayout" name="horizontalLayout_profile_name">
+        <item>
+         <widget class="QLineEdit" name="lineEdit_profile_name">
+          <property name="placeholderText">
+           <string>Enter a descriptive profile name (e.g., Airport RWY)</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+     </item>
    <item>
     <widget class="QGroupBox" name="groupBox_reference">
      <property name="title">
