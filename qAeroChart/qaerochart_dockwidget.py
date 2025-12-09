@@ -25,7 +25,7 @@ import os
 
 from qgis.PyQt import QtWidgets, uic
 from qgis.PyQt.QtCore import pyqtSignal, Qt, QItemSelectionModel
-from qgis.PyQt.QtWidgets import QTableWidgetItem, QFileDialog, QMessageBox, QShortcut
+from qgis.PyQt.QtWidgets import QTableWidgetItem, QFileDialog, QMessageBox, QShortcut, QInputDialog
 from qgis.PyQt.QtGui import QKeySequence
 from qgis.core import Qgis, QgsPointXY
 from qgis.utils import iface
