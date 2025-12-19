@@ -22,7 +22,7 @@
 """
 from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, Qt
 from qgis.PyQt.QtGui import QIcon
-from qgis.PyQt.QtWidgets import QAction, QMenu
+from qgis.PyQt.QtWidgets import QAction, QMenu, QToolBar
 
 # Initialize Qt resources from file resources.py
 # from .resources import *
@@ -78,6 +78,9 @@ class QAeroChart:
         
         # Layer manager (will be initialized in initGui)
         self.layer_manager = None
+        # Layout toolbar action
+        self.distance_table_action = None
+        self._layout_toolbar_hooked = False
 
         # Dedicated toolbar for qAeroChart tools
         self.tools_toolbar = None
@@ -226,6 +229,23 @@ class QAeroChart:
                 menu_bar.addMenu(self.top_menu)
         except Exception as e:
             print(f"PLUGIN qAeroChart WARNING: Could not create top-level menu: {e}")
+
+        # Layout toolbar action: add distance/altitude table into print layout
+        self.distance_table_action = QAction(QIcon(icon_path), self.tr('Add Distance/Altitude Table'), self.iface.mainWindow())
+        self.distance_table_action.setObjectName('qAeroChartDistanceTableAction')
+        self.distance_table_action.setStatusTip(self.tr('Insert a distance/altitude table into the active layout'))
+        self.distance_table_action.triggered.connect(self._open_distance_table_builder)
+        # Also hook into layout-designer openings to force-add the action to their toolbars
+        try:
+            self.iface.layoutDesignerOpened.connect(self._on_layout_designer_opened)
+            self._layout_toolbar_hooked = True
+        except Exception as e:
+            print(f"PLUGIN qAeroChart WARNING: Could not hook layoutDesignerOpened: {e}")
+        try:
+            if self.top_menu:
+                self.top_menu.addAction(self.distance_table_action)
+        except Exception:
+            pass
         
         # Initialize map tool manager
         from .tools import ProfilePointToolManager
@@ -300,6 +320,118 @@ class QAeroChart:
             # Uncomment to remove layers on plugin unload:
             # self.layer_manager.remove_all_layers()
             self.layer_manager = None
+
+        # Remove layout toolbar action
+        if self.distance_table_action:
+            try:
+                self.iface.removeLayoutDesignerToolBarIcon(self.distance_table_action)
+            except Exception:
+                pass
+            self.distance_table_action = None
+        if self._layout_toolbar_hooked:
+            try:
+                self.iface.layoutDesignerOpened.disconnect(self._on_layout_designer_opened)
+            except Exception:
+                pass
+            self._layout_toolbar_hooked = False
+
+    # --------------------------------------------------------------------------
+
+    def _active_layout_name(self):
+        """Best-effort retrieval of the active layout name in the layout designer."""
+
+        try:
+            designer = self.iface.activeLayoutDesignerInterface()
+            if designer and hasattr(designer, "layout") and designer.layout():
+                return designer.layout().name()
+        except Exception:
+            pass
+        try:
+            designer = self.iface.activeLayoutDesigner()
+            if designer and hasattr(designer, "layout") and designer.layout():
+                return designer.layout().name()
+        except Exception:
+            pass
+        return None
+
+    def _open_distance_table_builder(self):
+        """Launch the distance/altitude table builder dialog and insert the table."""
+
+        try:
+            from .scripts import table_distance_altitude
+        except Exception as exc:
+            print(f"PLUGIN qAeroChart ERROR: Cannot import table builder: {exc}")
+            return
+
+        default_layout = self._active_layout_name()
+        parent_window = None
+        try:
+            designer = self.iface.activeLayoutDesignerInterface()
+            if designer:
+                parent_window = designer.window()
+                self._attach_action_to_designer(designer)
+        except Exception:
+            parent_window = None
+        if parent_window is None:
+            try:
+                designer = self.iface.activeLayoutDesigner()
+                if designer:
+                    parent_window = designer
+                    self._attach_action_to_designer(designer)
+            except Exception:
+                parent_window = None
+
+        try:
+            table_distance_altitude.run(self.iface, default_layout_name=default_layout, parent_window=parent_window)
+        except TypeError:
+            # Fallback for environments that still have the older signature
+            table_distance_altitude.run(self.iface, default_layout_name=default_layout)
+
+    def _on_layout_designer_opened(self, designer_iface):
+        """Ensure our action appears in the layout designer toolbar when a composition opens."""
+
+        try:
+            self._attach_action_to_designer(designer_iface)
+        except Exception as exc:
+            print(f"PLUGIN qAeroChart WARNING: Could not attach action to layout designer: {exc}")
+
+    def _attach_action_to_designer(self, designer_iface):
+        if not self.distance_table_action or not designer_iface:
+            return
+
+        # Preferred: use designer interface API (QGIS 3.x): add to tools toolbar
+        try:
+            add_method = getattr(designer_iface, 'addActionToToolbar', None)
+            if callable(add_method):
+                add_method(self.distance_table_action, 'mLayoutDesignerToolsToolbar')
+                return
+        except Exception:
+            pass
+
+        # Fallback: scan toolbars in the designer window
+        target_names = {
+            'mLayoutDesignerToolsToolbar',
+            'mLayoutDesignerAddItemsToolbar',
+            'mLayoutDesignerToolbar'
+        }
+
+        window = getattr(designer_iface, 'window', None)
+        if callable(window):
+            window = window()
+        if not window:
+            return
+
+        toolbars = window.findChildren(QToolBar)
+        chosen = None
+        for bar in toolbars:
+            if bar.objectName() in target_names:
+                chosen = bar
+                break
+        if chosen is None and toolbars:
+            chosen = toolbars[0]
+
+        if chosen and self.distance_table_action not in chosen.actions():
+            chosen.addAction(self.distance_table_action)
 
     # --------------------------------------------------------------------------
 

@@ -1,6 +1,15 @@
+"""Interactive distance/altitude table builder with layout insertion.
+
+Usage inside QGIS Python console:
+    from qAeroChart.scripts import table_distance_altitude
+    table_distance_altitude.run(iface)
+
+This opens a dialog to build or load a table (e.g., from JSON) and then
+inserts it into the selected print layout using QgsLayoutItemManualTable.
+"""
+
+from PyQt5 import QtWidgets
 from PyQt5.QtGui import QColor, QFont
-from PyQt5.QtWidgets import QFileDialog
-import json
 from qgis.core import (
     QgsProject,
     QgsLayoutPoint,
@@ -10,106 +19,158 @@ from qgis.core import (
     QgsTableCell,
     QgsTextFormat,
     QgsLayoutFrame,
-    QgsPrintLayout
+    QgsPrintLayout,
 )
 
-# ---------------------------
-# Ask user to select JSON file
-# ---------------------------
-json_file, _ = QFileDialog.getOpenFileName(None, "Select Table JSON", "", "JSON Files (*.json)")
-if not json_file:
-    raise Exception("No file selected")
+from qAeroChart.ui.distance_altitude_table_dialog import DistanceAltitudeTableDialog
 
-with open(json_file, 'r') as f:
-    data = json.load(f)
+TABLE_NAME = "distance_altitude_table"
 
-thr = data['thr']  # runway number
-numeric_data = data['numeric_columns']  # dict: header -> value
 
-# ---------------------------
-# Layout setup
-# ---------------------------
-project = QgsProject.instance()
-manager = project.layoutManager()
-layouts = manager.layouts()
+def _calc_column_widths(total_width, first_col_width, num_columns, stroke_width, cell_margin):
+    """Mirror width math from original script to keep visual parity."""
 
-if layouts:
-    layout = layouts[0]
-    print(f"Using layout: {layout.name()}")
-else:
+    if num_columns < 1:
+        return []
+    if num_columns == 1:
+        return [total_width]
+
+    dynamic_cols = num_columns - 1
+    extra_width = (num_columns - 1) * stroke_width + 2 * cell_margin * num_columns
+    remaining_width = total_width - first_col_width - extra_width
+    if remaining_width <= 0:
+        # Fall back to evenly distributing the width
+        return [total_width / num_columns] * num_columns
+    dynamic_col_width = remaining_width / dynamic_cols
+    return [first_col_width] + [dynamic_col_width] * dynamic_cols
+
+
+def _get_or_create_layout(name, project):
+    manager = project.layoutManager()
+    for layout in manager.layouts():
+        if layout.name() == name:
+            return layout
     layout = QgsPrintLayout(project)
     layout.initializeDefaults()
-    layout.setName("AutoLayout")
+    layout.setName(name or "AutoLayout")
     manager.addLayout(layout)
-    print("Created new layout: AutoLayout")
+    return layout
 
-# ---------------------------
-# Table content
-# ---------------------------
-tbl_headers = [f'NM TO RWY{thr}'] + list(numeric_data.keys())
-tbl_rw = ['ALTITUDE'] + list(numeric_data.values())
 
-# Build the table rows
-tbl_rows = [
-    [QgsTableCell(h) for h in tbl_headers],
-    [QgsTableCell(v) for v in tbl_rw]
-]
+def _remove_existing_table(layout):
+    for item in layout.items():
+        if hasattr(item, "customProperty") and item.customProperty("name") == TABLE_NAME:
+            layout.removeLayoutItem(item)
+            break
 
-# ---------------------------
-# Remove existing table if present
-# ---------------------------
-for item in layout.items():
-    if hasattr(item, "customProperty") and item.customProperty("name") == "distance_altitude_table":
-        layout.removeLayoutItem(item)
-        print("Removed existing distance_altitude_table")
-        break
 
-# ---------------------------
-# Create manual table
-# ---------------------------
-t = QgsLayoutItemManualTable.create(layout)
-t.setTableContents(tbl_rows)
-t.setGridStrokeWidth(0.25)  # line width
-t.setCustomProperty("name", "distance_altitude_table")
+def _build_table(table_rows, cfg, layout):
+    t = QgsLayoutItemManualTable.create(layout)
+    t.setTableContents([[QgsTableCell(cell) for cell in row] for row in table_rows])
+    t.setGridStrokeWidth(cfg["stroke"])
+    try:
+        t.setCellMargin(cfg["cell_margin"])
+    except Exception:
+        # Older QGIS versions may not expose cell margin; ignore gracefully
+        pass
+    t.setCustomProperty("name", TABLE_NAME)
 
-# Text formatting
-text_format = QgsTextFormat()
-text_format.setFont(QFont("Arial"))
-text_format.setSize(8)
-t.setContentTextFormat(text_format)
-t.setGridColor(QColor(0, 0, 0, 255))
+    text_format = QgsTextFormat()
+    text_format.setFont(QFont(cfg["font_family"]))
+    text_format.setSize(cfg["font_size"])
+    t.setContentTextFormat(text_format)
+    t.setGridColor(QColor(0, 0, 0, 255))
 
-layout.addMultiFrame(t)
+    layout.addMultiFrame(t)
 
-# ---------------------------
-# Column widths accounting for cell margin and line width
-# ---------------------------
-original_total_width = 180.20  # total table width including frame
-first_col_width = 36.20        # fixed first column width
-num_dynamic_cols = len(tbl_headers) - 1
-stroke_width = t.gridStrokeWidth()
-cell_margin = 1.0  # mm
+    col_widths = _calc_column_widths(
+        cfg["total_width"],
+        cfg["first_col_width"],
+        len(table_rows[0]) if table_rows else 0,
+        cfg["stroke"],
+        cfg["cell_margin"],
+    )
+    if col_widths:
+        t.setColumnWidths(col_widths)
 
-total_columns = len(tbl_headers)
+    # Compute a sensible frame height so both header and first data row are visible
+    computed_height = cfg["height"]
+    try:
+        rows = len(table_rows)
+        if rows > 0:
+            per_row = max(cfg.get("font_size", 8.0) * 2.2, 8.0)  # scale with font size
+            computed_height = max(cfg["height"], rows * per_row + 2 * cfg["cell_margin"] + cfg["stroke"])
+    except Exception:
+        pass
 
-# total extra width from vertical lines and cell margins
-extra_width = (total_columns - 1) * stroke_width + 2 * cell_margin * total_columns
+    # If x/y look like legacy defaults (very large y), center horizontally and move near top
+    x_pos = cfg["x"]
+    y_pos = cfg["y"]
+    try:
+        pages = layout.pageCollection().pages()
+        if pages:
+            page_size = pages[0].pageSize()
+            if cfg["x"] is None or cfg["x"] <= 0:
+                x_pos = (page_size.width() - cfg["total_width"]) / 2.0
+            if cfg["y"] is None or cfg["y"] <= 0 or cfg["y"] >= page_size.height() * 0.6:
+                y_pos = (page_size.height() - computed_height) / 2.0
+    except Exception:
+        pass
 
-# remaining width for numeric columns
-remaining_width = original_total_width - first_col_width - extra_width
-dynamic_col_width = remaining_width / num_dynamic_cols
+    frame = QgsLayoutFrame(layout, t)
+    frame.attemptResize(
+        QgsLayoutSize(cfg["total_width"], computed_height, QgsUnitTypes.LayoutMillimeters)
+    )
+    frame.attemptMove(QgsLayoutPoint(x_pos, y_pos, QgsUnitTypes.LayoutMillimeters))
+    t.addFrame(frame)
 
-col_widths = [first_col_width] + [dynamic_col_width] * num_dynamic_cols
-t.setColumnWidths(col_widths)
+    return t
 
-# ---------------------------
-# Add frame with exact total width
-# ---------------------------
-frame_height = 9.8
-frame = QgsLayoutFrame(layout, t)
-frame.attemptResize(QgsLayoutSize(original_total_width, frame_height, QgsUnitTypes.LayoutMillimeters))
-frame.attemptMove(QgsLayoutPoint(19.79, 190.439, QgsUnitTypes.LayoutMillimeters))
-t.addFrame(frame)
 
-print(f"✅ Table added dynamically with {len(numeric_data)} numeric columns from JSON")
-print(f"Frame width: {original_total_width} mm, first column: {first_col_width} mm, each numeric column: {dynamic_col_width:.2f} mm")
+def run(iface=None, default_layout_name=None, parent_window=None, **_):
+    """Open the dialog, then add the table to the chosen layout.
+
+    Accepts **_ to stay compatible if callers pass extra keyword args.
+    """
+
+    parent = parent_window if parent_window is not None else (iface.mainWindow() if iface else None)
+    dlg = DistanceAltitudeTableDialog(iface=iface, parent=parent)
+    if default_layout_name:
+        dlg.select_layout(default_layout_name)
+    # Attach layout before showing so existing tables list populates
+    layout_name = default_layout_name
+    if layout_name:
+        project = QgsProject.instance()
+        layout = _get_or_create_layout(layout_name, project)
+        try:
+            dlg.set_layout(layout)
+        except Exception:
+            pass
+
+    if dlg.exec_() != QtWidgets.QDialog.Accepted:
+        return
+
+    table_rows = dlg.table_data()
+    cfg = dlg.config()
+    layout_name = cfg["layout_name"]
+    if not layout_name or layout_name.startswith("("):
+        layout_name = "AutoLayout"
+        cfg = {**cfg, "layout_name": layout_name}
+    project = QgsProject.instance()
+    layout = _get_or_create_layout(layout_name, project)
+    try:
+        dlg.set_layout(layout)
+    except Exception:
+        pass
+    _remove_existing_table(layout)
+    _build_table(table_rows, cfg, layout)
+    if iface:
+        iface.messageBar().pushInfo(
+            "Distance/Altitude",
+            f"Table added to layout '{layout.name()}' with {len(table_rows[0]) if table_rows else 0} columns.",
+        )
+    else:
+        print(
+            f"Table added to layout '{layout.name()}' with {len(table_rows[0]) if table_rows else 0} columns."
+        )
+
