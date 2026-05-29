@@ -31,6 +31,7 @@ from qgis.PyQt.QtWidgets import QAction, QMenu, QToolBar
 from .qaerochart_dockwidget import QAeroChartDockWidget
 from .vertical_scale_dialog import VerticalScaleDockWidget
 from .horizontal_scale_dialog import HorizontalScaleDockWidget
+from .holding_dock import HoldingDockWidget
 from .utils.logger import log
 from .utils.qt_compat import Qt
 import os.path
@@ -112,6 +113,9 @@ class QAeroChart:
         # GS/ROD Table dialog (Issue #73: non-blocking, kept alive)
         self._gs_rod_dialog = None
         self.gs_rod_action = None
+        # Nominal Holding dock (Issue #94)
+        self._holding_dock = None
+        self.holding_action = None
 
     # noinspection PyMethodMayBeStatic
     def tr(self, message):
@@ -244,6 +248,20 @@ class QAeroChart:
         self.horizontal_scale_action.triggered.connect(self.open_horizontal_scale_dock)
         self.tools_toolbar.addAction(self.horizontal_scale_action)
 
+        # Nominal Holding action (Issue #94)
+        holding_icon_path = os.path.join(self.plugin_dir, 'icons', 'icon_holding.svg')
+        if not os.path.exists(holding_icon_path):
+            holding_icon_path = icon_path
+        self.holding_action = QAction(
+            QIcon(holding_icon_path),
+            self.tr('Nominal Holding'),
+            self.iface.mainWindow(),
+        )
+        self.holding_action.setObjectName('qAeroChartHoldingAction')
+        self.holding_action.setStatusTip(self.tr('Draw a nominal holding pattern on the map'))
+        self.holding_action.triggered.connect(self.open_holding_dialog)
+        self.tools_toolbar.addAction(self.holding_action)
+
         # Create top-level menu "qAeroChart" and insert it to the right of qPANSOPY if present (issue #3)
         try:
             menu_bar = self.iface.mainWindow().menuBar()
@@ -253,6 +271,7 @@ class QAeroChart:
             self.top_menu.addAction(self.generate_profile_action)
             self.top_menu.addAction(self.vertical_scale_action)
             self.top_menu.addAction(self.horizontal_scale_action)
+            self.top_menu.addAction(self.holding_action)
 
             # Try to position it right after qPANSOPY
             inserted = False
@@ -469,6 +488,17 @@ class QAeroChart:
         self._gs_rod_dialog = None
         if self.gs_rod_action:
             self.gs_rod_action = None
+
+        # Clean up Nominal Holding dock
+        if self._holding_dock:
+            try:
+                self.iface.removeDockWidget(self._holding_dock)
+                self._holding_dock.deleteLater()
+            except Exception:
+                pass
+            self._holding_dock = None
+        if self.holding_action:
+            self.holding_action = None
 
     # --------------------------------------------------------------------------
 
@@ -699,6 +729,23 @@ class QAeroChart:
                 self.vertical_scale_dock.raise_()
         except Exception as e:
             log(f"Could not toggle Vertical Scale dock: {e}", "ERROR")
+
+    def open_holding_dialog(self) -> None:
+        """Toggle the Nominal Holding dock (issue #94)."""
+        try:
+            if self._holding_dock is None:
+                self._holding_dock = HoldingDockWidget(self.iface.mainWindow())
+                self.iface.addDockWidget(Qt.RightDockWidgetArea, self._holding_dock)
+                self._holding_dock.show()
+                return
+
+            if self._holding_dock.isVisible():
+                self._holding_dock.hide()
+            else:
+                self._holding_dock.show()
+                self._holding_dock.raise_()
+        except Exception as exc:
+            log(f"Could not toggle Holding dock: {exc}", "ERROR")
 
     def open_horizontal_scale_dock(self) -> None:
         """Toggle the Horizontal Scale dock (issue #69)."""
