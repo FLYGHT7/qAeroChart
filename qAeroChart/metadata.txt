@@ -28,8 +28,8 @@ about=Plugin for creating aeronautical charts following ICAO Annex 14 and Doc 86
     * Input parameter validation
     * Configuration export and import
 
-tracker=https://github.com/andures/qAeroChart/issues
-repository=https://github.com/andures/qAeroChart
+tracker=https://github.com/FLYGHT7/qAeroChart/issues
+repository=https://github.com/FLYGHT7/qAeroChart
 # End of mandatory metadata
 
 # Recommended items:
@@ -37,15 +37,11 @@ repository=https://github.com/andures/qAeroChart
 hasProcessingProvider=no
 # Uncomment the following line and add your changelog:
 changelog=0.1.0 - Initial Release
-    - Profile Creation feature (Issue #1)
-    - Memory layer management
-    - Interactive map point selection
-    - JSON configuration system
 
 # Tags are comma separated with spaces allowed
 tags=aviation,aeronautical,ICAO,charts,approach,profile,annex14,obstacles,surfaces,Qt5,Qt6,QGIS4
 
-homepage=https://github.com/andures/qAeroChart
+homepage=https://flyght7.com/qgis-opensource-aeronautical-charting-qaerochart/
 category=Vector
 icon=icons/icon.png
 # experimental flag
