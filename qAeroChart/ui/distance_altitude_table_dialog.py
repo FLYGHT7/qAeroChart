@@ -89,6 +89,10 @@ class DistanceAltitudeTableDialog(QtWidgets.QDialog):
         self.combo_existing.setMinimumWidth(180)
         self.btn_load_existing = QtWidgets.QPushButton("Load from layout")
         self.btn_load_existing.clicked.connect(self._load_from_existing)
+        btn_refresh_existing = QtWidgets.QPushButton("Refresh")
+        btn_refresh_existing.setFixedWidth(60)
+        btn_refresh_existing.setToolTip("Reload tables from the current layout")
+        btn_refresh_existing.clicked.connect(self._refresh_existing_tables)
 
         row_btns = QtWidgets.QHBoxLayout()
         row_btns.setSpacing(6)
@@ -98,6 +102,7 @@ class DistanceAltitudeTableDialog(QtWidgets.QDialog):
         row_btns.addSpacing(12)
         row_btns.addWidget(QtWidgets.QLabel("Existing tables"))
         row_btns.addWidget(self.combo_existing)
+        row_btns.addWidget(btn_refresh_existing)
         row_btns.addWidget(self.btn_load_existing)
         row_btns.addStretch(1)
         controls.addLayout(row_btns, 1, 0, 1, 4)
@@ -259,45 +264,63 @@ class DistanceAltitudeTableDialog(QtWidgets.QDialog):
             return
         try:
             from qgis.core import QgsLayoutItemManualTable, QgsLayoutFrame
-
-            tables = [
-                mf for mf in self._layout.multiFrames()
-                if isinstance(mf, QgsLayoutItemManualTable)
-            ]
-            if not tables:
-                self.combo_existing.addItem("(no tables in layout)")
-                return
-            for idx, tbl in enumerate(tables):
-                label = tbl.customProperty("name") or f"Table {idx+1}"
-                info = self._extract_table(tbl)
-                if info:
-                    self._existing_tables.append(info)
-                    self.combo_existing.addItem(f"{label} ({len(info['rows'][0]) if info['rows'] else 0} cols)")
-        except Exception:
+        except ImportError:
             self.combo_existing.addItem("(cannot read tables)")
+            return
+
+        tables = [
+            mf for mf in self._layout.multiFrames()
+            if isinstance(mf, QgsLayoutItemManualTable)
+        ]
+        if not tables:
+            self.combo_existing.addItem("(no tables in layout)")
+            return
+
+        all_items = list(self._layout.items())
+        for idx, tbl in enumerate(tables):
+            # Use the frame item ID as label (unique: distance_table_001, etc.)
+            frames = [it for it in all_items
+                      if isinstance(it, QgsLayoutFrame) and it.multiFrame() == tbl]
+            label = (frames[0].id() if frames else None) or f"Table {idx + 1}"
+            info = self._extract_table(tbl)
+            if info is not None:
+                self._existing_tables.append(info)
+                cols = len(info["rows"][0]) if info.get("rows") else 0
+                self.combo_existing.addItem(f"{label} ({cols} cols)")
 
     def _extract_table(self, tbl):
         try:
             contents = tbl.tableContents()
-        except Exception:
+        except AttributeError:
             contents = []
+
         rows = []
+        for row in contents:
+            row_vals = []
+            for cell in row:
+                try:
+                    val = cell.content()
+                    # PyQt5/QGIS 3: content() returns QVariant
+                    # PyQt6/QGIS 4: content() returns a Python object directly
+                    if hasattr(val, "toString"):
+                        row_vals.append(val.toString())
+                    else:
+                        row_vals.append(str(val) if val is not None else "")
+                except AttributeError:
+                    row_vals.append("")
+            rows.append(row_vals)
+
+        col_widths = []
         try:
-            for row in contents:
-                row_vals = []
-                for cell in row:
-                    try:
-                        row_vals.append(cell.text())
-                    except Exception:
-                        row_vals.append("")
-                rows.append(row_vals)
-        except Exception:
-            rows = []
+            for w in tbl.columnWidths():
+                col_widths.append(float(w))
+        except (AttributeError, TypeError):
+            pass
 
         cfg = {
             "stroke": getattr(tbl, "gridStrokeWidth", lambda: 0.25)(),
             "cell_margin": getattr(tbl, "cellMargin", lambda: 0.0)(),
-            "column_widths": getattr(tbl, "columnWidths", lambda: [])(),
+            "column_widths": col_widths,
             "font_family": "Arial",
             "font_size": 8.0,
             "total_width": None,
@@ -308,15 +331,15 @@ class DistanceAltitudeTableDialog(QtWidgets.QDialog):
 
         try:
             fmt = tbl.contentTextFormat()
-            fnt = fmt.font()
-            cfg["font_family"] = fnt.family()
-            cfg["font_size"] = fmt.size()
-        except Exception:
+            cfg["font_family"] = fmt.font().family()
+            cfg["font_size"] = float(fmt.size())
+        except (AttributeError, TypeError, ValueError):
             pass
 
-        # Derive size/pos from first frame associated
         try:
-            frames = [it for it in self._layout.items() if isinstance(it, QgsLayoutFrame) and it.multiFrame() == tbl]
+            from qgis.core import QgsLayoutFrame
+            frames = [it for it in self._layout.items()
+                      if isinstance(it, QgsLayoutFrame) and it.multiFrame() == tbl]
             if frames:
                 frame = frames[0]
                 size = frame.sizeWithUnits()
@@ -325,7 +348,7 @@ class DistanceAltitudeTableDialog(QtWidgets.QDialog):
                 cfg["height"] = size.height()
                 cfg["x"] = pos.x()
                 cfg["y"] = pos.y()
-        except Exception:
+        except AttributeError:
             pass
 
         return {"rows": rows, "config": cfg}

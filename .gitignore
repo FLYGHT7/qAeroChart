@@ -15,6 +15,7 @@ __pycache__/
 .claude/
 CLAUDE.md
 skills-lock.json
+CLAUDE.md
 
 # cache
 .cache/
