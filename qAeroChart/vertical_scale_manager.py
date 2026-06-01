@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 """
 VerticalScaleManager - Persist vertical scale configurations in QGIS project.
 

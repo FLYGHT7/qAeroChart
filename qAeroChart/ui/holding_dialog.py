@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 """
 HoldingDialog — non-blocking dialog for creating nominal holding patterns (issue #94).
 
@@ -20,7 +20,7 @@ except ImportError:
         from PyQt5 import QtWidgets  # type: ignore
 
 from ..utils.logger import log
-from ..utils.qt_compat import Qt, QMessageBox
+from ..utils.qt_compat import Qt
 from ..core.holding import HoldingParameters, build_holding
 from ..core.holding_layer_manager import HoldingLayerManager
 

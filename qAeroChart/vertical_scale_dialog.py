@@ -203,7 +203,9 @@ class VerticalScaleDockWidget(QtWidgets.QDockWidget):
 
         form_scale.addRow("Name", self._line_field("name", "Vertical Scale"))
         form_scale.addRow("Scale denominator (1:n)", self._spin_field("scale", QSpinBox, 1000, 100000, 10000, 500))
-        form_scale.addRow("Offset from guide line", self._spin_field("offset", QDoubleSpinBox, -5000.0, 5000.0, -50.0, 5.0, decimals=2))
+        form_scale.addRow(
+            "Offset from guide line",
+            self._spin_field("offset", QDoubleSpinBox, -5000.0, 5000.0, -50.0, 5.0, decimals=2))
         form_scale.addRow("Tick length", self._spin_field("tick", QDoubleSpinBox, 1.0, 200.0, 15.0, 1.0, decimals=2))
         layout.addWidget(grp_scale)
 
@@ -628,7 +630,6 @@ class VerticalScaleDockWidget(QtWidgets.QDockWidget):
                 profile_line = feet_ticks
 
             # Unit ticks and labels
-            unit_offset = tick_len * 0.6
             label_offset = tick_len * 0.75
             unit_label_along = tick_len * 1.0
             unit_label_up = tick_len * 0.3

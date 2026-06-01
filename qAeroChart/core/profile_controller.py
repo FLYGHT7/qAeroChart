@@ -88,17 +88,18 @@ class ProfileController(QObject):
 
             print(f"[qAeroChart][DIAG] _layer_manager={self._layer_manager!r}")
             if self._layer_manager:
-                print(f"[qAeroChart][DIAG] Calling create_all_layers...")
+                print("[qAeroChart][DIAG] Calling create_all_layers...")
                 result = self._layer_manager.create_all_layers(config)
-                print(f"[qAeroChart][DIAG] create_all_layers returned: {list(result.keys()) if isinstance(result, dict) else result!r}")
-                print(f"[qAeroChart][DIAG] Calling populate_layers_from_config...")
+                keys = list(result.keys()) if isinstance(result, dict) else result
+                print(f"[qAeroChart][DIAG] create_all_layers returned: {keys!r}")
+                print("[qAeroChart][DIAG] Calling populate_layers_from_config...")
                 pop_result = self._layer_manager.populate_layers_from_config(config)
                 print(f"[qAeroChart][DIAG] populate_layers_from_config returned: {pop_result!r}")
                 profile_points = config.get("profile_points", [])
                 runway_dir = config.get("runway", {}).get("direction", "N/A")
                 log(f"Profile saved: dir={runway_dir}, {len(profile_points)} points")
             else:
-                print(f"[qAeroChart][DIAG] WARNING: _layer_manager is None!")
+                print("[qAeroChart][DIAG] WARNING: _layer_manager is None!")
                 log("Layer manager not available; profile saved without drawing", "WARNING")
 
             self._emit_msg("Profile Saved", success_msg, MsgLevel.Success)

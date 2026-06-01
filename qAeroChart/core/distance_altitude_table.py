@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 """
 Pure-Python helpers for the distance/altitude table (Issue #58).
 

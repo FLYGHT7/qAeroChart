@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 """
 vertical_scale — Pure-geometry helpers for the vertical scale bar.
 

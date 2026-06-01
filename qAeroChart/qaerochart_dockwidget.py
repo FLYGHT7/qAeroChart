@@ -39,12 +39,15 @@ FORM_CLASS, _ = uic.loadUiType(os.path.join(
     os.path.dirname(__file__), 'qaerochart_dockwidget_base.ui'))
 
 
-
 class QAeroChartDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
 
     closingPlugin = pyqtSignal()
 
-    def __init__(self, iface: object | None = None, controller: object | None = None, parent: QtWidgets.QWidget | None = None) -> None:
+    def __init__(
+        self, iface: object | None = None,
+        controller: object | None = None,
+        parent: QtWidgets.QWidget | None = None,
+    ) -> None:
         """Constructor."""
         super(QAeroChartDockWidget, self).__init__(parent)
         self._iface = iface
@@ -107,31 +110,31 @@ class QAeroChartDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
         """Slot for ProfileController.message signal — pushes to QGIS message bar."""
         if self._iface is not None:
             push_message(self._iface, title, text, level, duration=5)
-    
+
     def _init_profile_form(self):
         """Initialize the profile creation form embedded in the dockwidget."""
         # Load the form widget (QWidget root since B19 fix)
         form_ui_path = os.path.join(os.path.dirname(__file__), 'ui', 'profile_creation_dialog_base.ui')
         self.profile_form_widget = uic.loadUi(form_ui_path)
-        
+
         # Replace the placeholder in scroll area
         scroll_layout = self.scrollArea.widget().layout()
         scroll_layout.removeWidget(self.labelFormPlaceholder)
         self.labelFormPlaceholder.deleteLater()
         scroll_layout.addWidget(self.profile_form_widget)
-        
+
         # Store reference point
         self.reference_point = None
-        
+
         # Connect all buttons
         self._connect_form_buttons()
-        
+
         # Initialize table with default rows
         self._initialize_profile_table()
-        
+
         # Set default values for runway parameters
         self._set_default_runway_values()
-    
+
     def _connect_form_buttons(self):
         """Connect all buttons in the embedded form and the dockwidget button bar."""
         # Primary action buttons live on the dockwidget (always visible, outside scroll)
@@ -143,11 +146,11 @@ class QAeroChartDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
             self.btnLoadConfig.clicked.connect(self._on_load_config)
         if hasattr(self, 'btnSaveConfig'):
             self.btnSaveConfig.clicked.connect(self._on_save_config)
-        
+
         # Reference point selection lives in the embedded form
         if hasattr(self.profile_form_widget, 'btn_select_point'):
             self.profile_form_widget.btn_select_point.clicked.connect(self._on_select_point_clicked)
-        
+
         # Table management buttons remain in the embedded form
         if hasattr(self.profile_form_widget, 'btn_add_point'):
             self.profile_form_widget.btn_add_point.clicked.connect(self._on_add_row)
@@ -157,18 +160,18 @@ class QAeroChartDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
             self.profile_form_widget.btn_move_up.clicked.connect(self._on_move_row_up)
         if hasattr(self.profile_form_widget, 'btn_move_down'):
             self.profile_form_widget.btn_move_down.clicked.connect(self._on_move_row_down)
-    
+
     def _initialize_profile_table(self):
         """Initialize the profile points table with default values."""
         table = self.profile_form_widget.tableWidget_points
-        
+
         # Set column widths
         table.setColumnWidth(0, 120)  # Point Name
         table.setColumnWidth(1, 100)  # Distance (NM)
         table.setColumnWidth(2, 110)  # Elevation (ft)
         table.setColumnWidth(3, 100)  # MOCA (ft)
         table.setColumnWidth(4, 180)  # Notes
-        
+
         # Add default rows with realistic ICAO profile data
         # Based on standard approach profile with multiple fix points
         self._add_table_row("MAPt", "0.0", "500", "1000", "Missed Approach Point")
@@ -178,9 +181,9 @@ class QAeroChartDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
         self._add_table_row("5 NM", "5.0", "1680", "2100", "")
         self._add_table_row("FAF", "6.0", "2000", "2400", "Final Approach Fix")
         self._add_table_row("IF", "7.4", "2000", "2500", "Intermediate Fix")
-        
+
         log("Profile table initialized with 7 default points (realistic ICAO profile)")
-    
+
     def _set_default_runway_values(self):
         """Set default values for runway parameters to speed up testing."""
         # Default profile name if user doesn't enter one yet
@@ -189,35 +192,35 @@ class QAeroChartDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
         # Set default runway direction (matching typical instrument approach)
         if hasattr(self.profile_form_widget, 'lineEdit_direction'):
             self.profile_form_widget.lineEdit_direction.setText("07")
-        
+
         # Set default runway length (realistic: ~3000m = 9843 ft)
         if hasattr(self.profile_form_widget, 'lineEdit_length'):
             self.profile_form_widget.lineEdit_length.setText("3000")
-        
+
         # Set default THR elevation (13 ft as per ICAO example)
         if hasattr(self.profile_form_widget, 'lineEdit_thr_elev'):
             self.profile_form_widget.lineEdit_thr_elev.setText("13")
-        
+
         # Set default TCH/RDH (50 ft standard)
         if hasattr(self.profile_form_widget, 'lineEdit_tch_rdh'):
             self.profile_form_widget.lineEdit_tch_rdh.setText("50")
-        
+
         # Log exactly what we set above so it's clear
         log("Default runway values set (DIR 07, 3000 m length, 13 ft THR, 50 ft TCH)")
-    
+
     def show_menu(self):
         """Show the main menu page."""
         self._refresh_profile_list()
         self.stackedWidget.setCurrentIndex(0)
         log("Showing menu page")
-    
+
     def show_profile_form(self):
         """Show the profile creation form page."""
         self.stackedWidget.setCurrentIndex(1)
         log("Showing profile form page")
-    
+
     # ========== Profile List Management ==========
-    
+
     def _init_profile_list(self):
         """Initialize the profile list widget."""
         # Allow selecting multiple profiles at once
@@ -254,7 +257,7 @@ class QAeroChartDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
                 self.draw_profile()
         except Exception as e:
             log(f"Context menu failed: {e}", "WARNING")
-    
+
     def _refresh_profile_list(self) -> None:
         """Refresh the profile list from saved profiles."""
         self.listWidgetProfiles.clear()
@@ -273,7 +276,7 @@ class QAeroChartDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
                 self.listWidgetProfiles.addItem(item)
 
         log(f"Profile list refreshed ({len(profiles)} profiles)")
-    
+
     def _on_profile_selection_changed(self):
         """Handle profile selection change."""
         selected_items = self.listWidgetProfiles.selectedItems()
@@ -290,7 +293,7 @@ class QAeroChartDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
             self.btnEditProfile.setEnabled(False)
             self.btnDrawProfile.setEnabled(False)
             self.btnDeleteProfile.setEnabled(False)
-    
+
     def new_profile(self):
         """Create a new profile - clear form and show it."""
         # Clear form
@@ -299,25 +302,25 @@ class QAeroChartDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
             self.profile_form_widget.lineEdit_reference.clear()
         if hasattr(self.profile_form_widget, 'lineEdit_profile_name'):
             self.profile_form_widget.lineEdit_profile_name.clear()
-        
+
         # Clear table and add default rows
         if hasattr(self.profile_form_widget, 'tableWidget_points'):
             self.profile_form_widget.tableWidget_points.setRowCount(0)
             self._initialize_profile_table()
-        
+
         # Set default runway values
         self._set_default_runway_values()
-        
+
         # Store that we're creating a new profile (not editing)
         self.current_profile_id = None
-        
+
         # Update primary action button label
         if hasattr(self, 'btnCreateProfile'):
             self.btnCreateProfile.setText("Create Profile")
-        
+
         # Show form
         self.show_profile_form()
-    
+
     def edit_profile(self) -> None:
         """Edit the selected profile."""
         selected_items = self.listWidgetProfiles.selectedItems()
@@ -359,7 +362,7 @@ class QAeroChartDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
             self.btnCreateProfile.setText("Update Profile")
 
         self.show_profile_form()
-    
+
     def draw_profile(self) -> None:
         """Draw the selected profile on the map."""
         selected_items = self.listWidgetProfiles.selectedItems()
@@ -403,7 +406,7 @@ class QAeroChartDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
         profile_id = selected_items[0].data(Qt.UserRole)
         if self._controller:
             self._controller.generate_distance_altitude_table(profile_id)
-    
+
     def delete_profile(self) -> None:
         """Delete one or multiple selected profiles."""
         selected_items = [i for i in self.listWidgetProfiles.selectedItems() if i.data(Qt.UserRole)]
@@ -434,36 +437,36 @@ class QAeroChartDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
             self._controller.delete_profiles(profile_ids)
 
     # ========== End Profile List Management ==========
-    
+
     def cancel_profile(self):
         """Cancel profile creation and return to menu."""
         # Deactivate tool if active
         if hasattr(self, 'tool_manager') and self.tool_manager:
             self.tool_manager.deactivate_tool()
-        
+
         # Clear form
         self.reference_point = None
         if hasattr(self.profile_form_widget, 'lineEdit_reference'):
             self.profile_form_widget.lineEdit_reference.clear()
-        
+
         # Return to menu
         self.show_menu()
         log("Profile creation cancelled")
-    
+
     # ========== Table Management Methods ==========
-    
+
     def _on_add_row(self):
         """Add a new row to the profile points table."""
         table = self.profile_form_widget.tableWidget_points
         row_count = table.rowCount()
         self._add_table_row(f"Point_{row_count + 1}", "", "", "")
         log(f"Added row {row_count + 1} to table")
-    
+
     def _on_remove_row(self):
         """Remove the currently selected row from the table."""
         table = self.profile_form_widget.tableWidget_points
         current_row = table.currentRow()
-        
+
         if current_row >= 0:
             table.removeRow(current_row)
             log(f"Removed row {current_row} from table")
@@ -475,11 +478,11 @@ class QAeroChartDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
                     level=MsgLevel.Warning,
                     duration=3
                 )
-    
+
     def _add_table_row(self, point_name="", distance="", elevation="", moca="", notes=""):
         """
         Add a row to the table with specified values.
-        
+
         Args:
             point_name (str): Name/identifier of the profile point
             distance (str): Distance from origin (NM)
@@ -490,7 +493,7 @@ class QAeroChartDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
         table = self.profile_form_widget.tableWidget_points
         row_position = table.rowCount()
         table.insertRow(row_position)
-        
+
         # Set items (5 columns)
         table.setItem(row_position, 0, QTableWidgetItem(point_name))
         table.setItem(row_position, 1, QTableWidgetItem(distance))
@@ -570,15 +573,15 @@ class QAeroChartDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
             except RuntimeError:
                 pass
             table.setCurrentCell(new_r, 0)
-    
+
     # ========== Configuration Save/Load Methods ==========
-    
+
     def _on_save_config(self):
         """Save current configuration to JSON file."""
         try:
             # Build configuration from current form state
             config = self._build_config_from_form()
-            
+
             if not config:
                 self._iface.messageBar().pushMessage(
                     "Cannot Save",
@@ -587,11 +590,11 @@ class QAeroChartDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
                     duration=5
                 )
                 return
-            
+
             # Get default filename
             runway_dir = self.profile_form_widget.lineEdit_direction.text().strip() or "profile"
             default_filename = JSONHandler.get_default_filename(runway_dir)
-            
+
             # Show file dialog
             filepath, _ = QFileDialog.getSaveFileName(
                 self,
@@ -599,18 +602,18 @@ class QAeroChartDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
                 default_filename,
                 "JSON Files (*.json);;All Files (*)"
             )
-            
+
             if not filepath:
                 log("Save cancelled by user")
                 return
-            
+
             # Ensure .json extension
             if not filepath.lower().endswith('.json'):
                 filepath += '.json'
-            
+
             # Save configuration
             JSONHandler.save_config(config, filepath)
-            
+
             # Show success message
             self._iface.messageBar().pushMessage(
                 "Configuration Saved",
@@ -618,9 +621,9 @@ class QAeroChartDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
                 level=MsgLevel.Success,
                 duration=5
             )
-            
+
             log(f"Configuration saved to {filepath}")
-            
+
         except Exception as e:
             self._iface.messageBar().pushMessage(
                 "Save Error",
@@ -629,7 +632,7 @@ class QAeroChartDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
                 duration=5
             )
             log(f"Save failed: {str(e)}", "ERROR")
-    
+
     def _on_load_config(self):
         """Load configuration from JSON file."""
         try:
@@ -640,18 +643,18 @@ class QAeroChartDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
                 "",
                 "JSON Files (*.json);;All Files (*)"
             )
-            
+
             if not filepath:
                 log("Load cancelled by user")
                 return
-            
+
             # Load configuration
             config = JSONHandler.load_config(filepath)
-            
+
             if config:
                 # Populate form with loaded configuration
                 self._populate_form_from_config(config)
-                
+
                 # Show success message
                 self._iface.messageBar().pushMessage(
                     "Configuration Loaded",
@@ -659,9 +662,9 @@ class QAeroChartDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
                     level=MsgLevel.Success,
                     duration=5
                 )
-                
+
                 log(f"Configuration loaded from {filepath}")
-            
+
         except FileNotFoundError as e:
             self._iface.messageBar().pushMessage(
                 "File Not Found",
@@ -670,7 +673,7 @@ class QAeroChartDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
                 duration=5
             )
             log(f"{str(e)}", "WARNING")
-            
+
         except ValueError as e:
             self._iface.messageBar().pushMessage(
                 "Invalid Configuration",
@@ -679,7 +682,7 @@ class QAeroChartDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
                 duration=5
             )
             log(f"{str(e)}", "WARNING")
-            
+
         except Exception as e:
             self._iface.messageBar().pushMessage(
                 "Load Error",
@@ -688,33 +691,33 @@ class QAeroChartDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
                 duration=5
             )
             log(f"Load failed: {str(e)}", "ERROR")
-    
+
     def _populate_form_from_config(self, config):
         """
         Populate form fields from loaded configuration.
         Supports both v1.0 (reference_point) and v2.0 (origin_point) formats.
-        
+
         Args:
             config (dict): Loaded configuration
         """
         # Clear existing table data
         table = self.profile_form_widget.tableWidget_points
         table.setRowCount(0)
-        
+
         # Load origin/reference point (v2.0 uses "origin_point", v1.0 uses "reference_point")
         origin_point = config.get("origin_point", config.get("reference_point", {}))
         if origin_point and 'x' in origin_point and 'y' in origin_point:
             self.reference_point = QgsPointXY(origin_point['x'], origin_point['y'])
             coord_text = f"Origin: X={origin_point['x']:.2f}, Y={origin_point['y']:.2f}"
             self.profile_form_widget.lineEdit_reference.setText(coord_text)
-        
+
         # Load runway parameters
         runway = config.get("runway", {})
         self.profile_form_widget.lineEdit_direction.setText(runway.get("direction", ""))
         self.profile_form_widget.lineEdit_length.setText(runway.get("length", ""))
         self.profile_form_widget.lineEdit_thr_elev.setText(runway.get("thr_elevation", ""))
         self.profile_form_widget.lineEdit_tch_rdh.setText(runway.get("tch_rdh", ""))
-        
+
         # Load only the axis max (Issue #9: Style Parameters cleanup)
         style = config.get("style", {})
         form = self.profile_form_widget
@@ -723,11 +726,15 @@ class QAeroChartDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
                 form.spinBox_axis_max_nm.setValue(float(style.get('axis_max_nm', 12)))
             except Exception:
                 form.spinBox_axis_max_nm.setValue(12.0)
-        
+
         # Load OCA single if present
         try:
             oca = config.get('oca', None)
-            if hasattr(form, 'checkBox_enable_oca') and hasattr(form, 'doubleSpinBox_oca_from_nm') and hasattr(form, 'doubleSpinBox_oca_to_nm') and hasattr(form, 'doubleSpinBox_oca_ft'):
+            has_oca = (hasattr(form, 'checkBox_enable_oca')
+                       and hasattr(form, 'doubleSpinBox_oca_from_nm')
+                       and hasattr(form, 'doubleSpinBox_oca_to_nm')
+                       and hasattr(form, 'doubleSpinBox_oca_ft'))
+            if has_oca:
                 if oca:
                     form.checkBox_enable_oca.setChecked(True)
                     try:
@@ -751,7 +758,7 @@ class QAeroChartDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
                 moca=point.get("moca_ft", point.get("moca", "")),  # Backward compatibility
                 notes=point.get("notes", "")
             )
-        
+
         config_version = config.get("version", "1.0")
         log(f"Loaded {len(profile_points)} profile points from config v{config_version}")
 
@@ -812,7 +819,7 @@ class QAeroChartDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
 
         if self._controller:
             self._controller.rename_profile(profile_id, new_name)
-    
+
     def create_profile(self) -> None:
         """Create or update profile from the embedded form data."""
         log("Creating profile from embedded form...")
@@ -832,7 +839,8 @@ class QAeroChartDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
             profile_name = f"Profile {runway.get('direction', 'N/A')}"
 
         if self._controller:
-            print(f"[qAeroChart][DIAG] Calling save_or_update_profile('{profile_name}', profile_id={self.current_profile_id!r})")
+            print(f"[qAeroChart][DIAG] Calling save_or_update_profile"
+                  f"('{profile_name}', profile_id={self.current_profile_id!r})")
             saved = self._controller.save_or_update_profile(
                 profile_name, config, self.current_profile_id
             )
@@ -845,49 +853,49 @@ class QAeroChartDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
                 except (AttributeError, RuntimeError):
                     pass
                 log("Profile saved. Form remains open for new profiles.")
-    
+
     def _on_select_point_clicked(self):
         """Handle 'Select from Map' button click in embedded form."""
         log("Origin point selection requested (embedded form)")
         log(">>> CLICK ON THE MAP TO SELECT ORIGIN POINT <<<")
-        
+
         # Update button text
         if hasattr(self.profile_form_widget, 'btn_select_point'):
             self.profile_form_widget.btn_select_point.setText(">>> Click on map now >>>")
             self.profile_form_widget.btn_select_point.setEnabled(False)
-        
+
         # Activate map tool
         if hasattr(self, 'tool_manager') and self.tool_manager:
             tool = self.tool_manager.get_tool()
             if tool is None:
                 tool = self.tool_manager.create_tool()
-            
+
             # Provide a preview generator so the tool can draw a live preview while moving
             if hasattr(tool, 'set_preview_generator'):
                 tool.set_preview_generator(self._generate_profile_preview)
-            
+
             # Connect tool signal to our handler
             tool.originSelected.connect(self._on_origin_selected)
-            
+
             # Activate the tool
             self.tool_manager.activate_tool()
-    
+
     def _on_origin_selected(self, point):
         """Handle origin point selection from map."""
         self.reference_point = point
-        
+
         # Update UI
         if hasattr(self.profile_form_widget, 'lineEdit_reference'):
             coord_text = f"Origin: X={point.x():.2f}, Y={point.y():.2f}"
             self.profile_form_widget.lineEdit_reference.setText(coord_text)
-        
+
         # Reset button
         if hasattr(self.profile_form_widget, 'btn_select_point'):
             self.profile_form_widget.btn_select_point.setText("Select from Map")
             self.profile_form_widget.btn_select_point.setEnabled(True)
-        
+
         log(f"Origin point set to X={point.x():.2f}, Y={point.y():.2f}")
-        
+
         # Deactivate map tool to finish selection and clear preview
         if hasattr(self, 'tool_manager') and self.tool_manager:
             self.tool_manager.deactivate_tool()
@@ -922,7 +930,7 @@ class QAeroChartDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
                 tch_m = tch_ft * 0.3048
             except (ValueError, AttributeError):
                 runway_len, tch_m = 0.0, 0.0
-            
+
             dir_text = form.lineEdit_direction.text().strip() if hasattr(form, 'lineEdit_direction') else ""
             try:
                 rwy_num = int(''.join(ch for ch in dir_text if ch.isdigit())[:2] or 0)
@@ -930,10 +938,10 @@ class QAeroChartDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
                 rwy_num = 0
             dir_sign = -1 if rwy_num and rwy_num <= 18 else 1
             geometry = ProfileChartGeometry(origin_point, vertical_exaggeration=10.0, horizontal_direction=dir_sign)
-            
+
             # Profile polyline
             profile_line = geometry.create_profile_line(profile_points)
-            
+
             # Baseline, grid and ticks based on max distance
             tick_segments = []
             grid_segments = []
@@ -957,7 +965,7 @@ class QAeroChartDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
                         tick_segments.append(seg)
                         # Label at the top of the tick
                         top_pt = seg[1]
-                        tick_labels.append({'pos': top_pt, 'text': str(m.get('label', m.get('distance', '')))} )
+                        tick_labels.append({'pos': top_pt, 'text': str(m.get('label', m.get('distance', '')))})
                 # grid (full-height) â€“ keep visual height ~1500 m after VE (shorter to reduce clutter)
                 grid = geometry.create_distance_markers(max_nm, marker_height_m=(1500.0/10.0))
                 for g in grid:
@@ -968,7 +976,7 @@ class QAeroChartDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
                 p0 = geometry.calculate_profile_point(0.0, 0.0)
                 p1 = geometry.calculate_profile_point(max_nm, 0.0)
                 baseline = [p0, p1]
-            
+
             # Optional: add runway line preview on TCH level for context
             if runway_len > 0 and tch_m >= 0:
                 runway_pts = geometry.create_runway_line(runway_len, tch_m)
@@ -977,7 +985,7 @@ class QAeroChartDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
                 # We'll prepend runway to improve context if profile_line empty
                 if not profile_line:
                     profile_line = runway_pts
-            
+
             return {
                 'profile_line': profile_line or [],
                 'baseline': baseline or [],
@@ -988,7 +996,7 @@ class QAeroChartDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
         except Exception as e:
             log(f"preview generation failed: {e}", "WARNING")
             return {'profile_line': [], 'tick_segments': [], 'tick_labels': []}
-    
+
     def _build_config_from_form(self):
         """Build configuration dict from embedded form data."""
         # Validate origin point - allow fallback to last hovered preview point if user forgot to click
@@ -1019,7 +1027,7 @@ class QAeroChartDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
                     duration=5
                 )
                 return None
-        
+
         # Get runway parameters
         runway = {
             'direction': self.profile_form_widget.lineEdit_direction.text().strip(),
@@ -1027,7 +1035,7 @@ class QAeroChartDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
             'thr_elevation': self.profile_form_widget.lineEdit_thr_elev.text().strip(),
             'tch_rdh': self.profile_form_widget.lineEdit_tch_rdh.text().strip()
         }
-        
+
         # Validate runway parameters
         if not all([runway['direction'], runway['length'], runway['thr_elevation'], runway['tch_rdh']]):
             self._iface.messageBar().pushMessage(
@@ -1037,7 +1045,7 @@ class QAeroChartDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
                 duration=5
             )
             return None
-        
+
         # Get profile points from table
         profile_points = []
         table = self.profile_form_widget.tableWidget_points
@@ -1047,7 +1055,7 @@ class QAeroChartDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
             elevation_ft = table.item(row, 2).text() if table.item(row, 2) else ""
             moca_ft = table.item(row, 3).text() if table.item(row, 3) else ""
             notes = table.item(row, 4).text() if table.item(row, 4) else ""
-            
+
             if point_name or distance_nm or elevation_ft:
                 profile_points.append({
                     'point_name': point_name,
@@ -1056,7 +1064,7 @@ class QAeroChartDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
                     'moca_ft': moca_ft,
                     'notes': notes
                 })
-        
+
         if not profile_points:
             self._iface.messageBar().pushMessage(
                 "No Profile Points",
@@ -1065,7 +1073,7 @@ class QAeroChartDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
                 duration=5
             )
             return None
-        
+
         # Build minimal style config (Issue #9)
         form = self.profile_form_widget
         vertical_exaggeration = 10.0  # fixed; no UI control yet
@@ -1075,7 +1083,7 @@ class QAeroChartDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
                 axis_max_nm = float(form.spinBox_axis_max_nm.value())
             except Exception:
                 axis_max_nm = 12.0
-        
+
         # Derive explicit MOCA segments from table (use point i MOCA for segment iâ†’i+1)
         moca_segments = []
         try:
@@ -1099,7 +1107,9 @@ class QAeroChartDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
         oca_value = None
         try:
             if hasattr(form, 'checkBox_enable_oca') and form.checkBox_enable_oca.isChecked():
-                if hasattr(form, 'doubleSpinBox_oca_from_nm') and hasattr(form, 'doubleSpinBox_oca_to_nm') and hasattr(form, 'doubleSpinBox_oca_ft'):
+                if (hasattr(form, 'doubleSpinBox_oca_from_nm')
+                        and hasattr(form, 'doubleSpinBox_oca_to_nm')
+                        and hasattr(form, 'doubleSpinBox_oca_ft')):
                     oca_value = {
                         'from_nm': float(form.doubleSpinBox_oca_from_nm.value()),
                         'to_nm': float(form.doubleSpinBox_oca_to_nm.value()),

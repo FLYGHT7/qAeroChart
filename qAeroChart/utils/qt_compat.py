@@ -1,4 +1,4 @@
-"""
+﻿"""
 Compatibility shim that normalises PyQt5 / PyQt6 API differences.
 
 QGIS ships PyQt5 via ``qgis.PyQt``.  When running outside QGIS (dev/test)
@@ -31,15 +31,19 @@ try:
         # QGIS 4 / PyQt6: obtain real QMetaType.Type enum members so QgsField works.
         try:
             from qgis.PyQt.QtCore import QMetaType as _QMetaType
+
             class _QVariant:  # type: ignore[no-redef]
-                Int    = _QMetaType.Type.Int
+                Int = _QMetaType.Type.Int
                 Double = _QMetaType.Type.Double
                 String = _QMetaType.Type.QString   # C++ name is QString, not String
-                Bool   = _QMetaType.Type.Bool
+                Bool = _QMetaType.Type.Bool
         except (ImportError, AttributeError):
             # Last-resort integer fallback (values match QMetaType::Type numerically)
             class _QVariant:  # type: ignore[no-redef]
-                Int = 2; Double = 6; String = 10; Bool = 1
+                Int = 2
+                Double = 6
+                String = 10
+                Bool = 1
 except ImportError:
     try:
         from PyQt6.QtCore import Qt as _Qt  # type: ignore[no-redef]
@@ -51,14 +55,18 @@ except ImportError:
         # PyQt6: QVariant not exposed. Use QMetaType.Type enum values (strict checking).
         try:
             from PyQt6.QtCore import QMetaType as _QMetaType6  # type: ignore[no-redef]
+
             class _QVariant:  # type: ignore[no-redef]
-                Int    = _QMetaType6.Type.Int
+                Int = _QMetaType6.Type.Int
                 Double = _QMetaType6.Type.Double
                 String = _QMetaType6.Type.QString
-                Bool   = _QMetaType6.Type.Bool
+                Bool = _QMetaType6.Type.Bool
         except (ImportError, AttributeError):
             class _QVariant:  # type: ignore[no-redef]
-                Int = 2; Double = 6; String = 10; Bool = 1
+                Int = 2
+                Double = 6
+                String = 10
+                Bool = 1
     except ImportError:
         from PyQt5.QtCore import Qt as _Qt  # type: ignore[no-redef]
         from PyQt5.QtCore import QVariant as _QVariant  # type: ignore[no-redef]
@@ -312,10 +320,10 @@ class _MsgLevel:
     Safe to reference at module level — never raises AttributeError.
     Use ``MsgLevel.Success`` instead of ``Qgis.Success`` everywhere.
     """
-    Info     = _resolve_msg_level("Info", 0)
-    Warning  = _resolve_msg_level("Warning", 1)
+    Info = _resolve_msg_level("Info", 0)
+    Warning = _resolve_msg_level("Warning", 1)
     Critical = _resolve_msg_level("Critical", 2)
-    Success  = _resolve_msg_level("Success", 3)
+    Success = _resolve_msg_level("Success", 3)
 
 
 MsgLevel = _MsgLevel

@@ -1,4 +1,4 @@
-"""Interactive distance/altitude table builder with layout insertion.
+﻿"""Interactive distance/altitude table builder with layout insertion.
 
 Usage inside QGIS Python console:
     from qAeroChart.scripts import table_distance_altitude
@@ -211,4 +211,3 @@ def run(iface=None, default_layout_name=None, parent_window=None, **_):
         return
 
     insert_from_dialog(dlg, iface)
-
