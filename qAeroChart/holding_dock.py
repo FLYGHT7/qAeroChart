@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 """Nominal Holding dock widget — mirrors VerticalScaleDockWidget / HorizontalScaleDockWidget (Issue #94)."""
 
 from qgis.PyQt import QtWidgets
@@ -24,7 +24,7 @@ from qgis.PyQt.QtWidgets import (
     QAction,
 )
 from qgis.PyQt.QtGui import QKeySequence
-from qgis.core import QgsPointXY, QgsPoint
+from qgis.core import QgsPointXY
 from qgis.utils import iface
 
 from .utils.qt_compat import Qt, MsgLevel

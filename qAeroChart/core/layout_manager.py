@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 """
 LayoutManager — manages QGIS print layouts for the qAeroChart plugin.
 

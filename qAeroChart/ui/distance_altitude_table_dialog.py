@@ -1,10 +1,10 @@
-try:
-    from qgis.PyQt import QtCore, QtWidgets
+﻿try:
+    from qgis.PyQt import QtWidgets
 except ImportError:
     try:
-        from PyQt6 import QtCore, QtWidgets  # type: ignore
+        from PyQt6 import QtWidgets  # type: ignore
     except ImportError:
-        from PyQt5 import QtCore, QtWidgets  # type: ignore
+        from PyQt5 import QtWidgets  # type: ignore
 from ..utils.qt_compat import Qt, QAbstractItemView
 from ..core.table_style_manager import TableStyleManager
 
@@ -609,4 +609,3 @@ class DistanceAltitudeTableDialog(QtWidgets.QDialog):
             QtWidgets.QMessageBox.warning(self, "Table", "Please set at least 1 row and 1 column")
             return
         super().accept()
-

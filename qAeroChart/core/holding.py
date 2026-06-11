@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 """
 Nominal holding pattern geometry calculator.
 
@@ -106,7 +106,7 @@ def build_holding(params: HoldingParameters) -> HoldingResult:
         ('line', [outbound_pt, fix]),               # inbound leg
         ('arc',  [fix, nominal1, nominal0]),         # turn 1  (departure arc)
         ('line', [nominal0, nominal2]),              # outbound leg
-        ('arc',  [nominal2, nominal3, outbound_pt]), # turn 2  (return arc)
+        ('arc',  [nominal2, nominal3, outbound_pt]),  # turn 2  (return arc)
     ]
 
     return HoldingResult(

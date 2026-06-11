@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 
 # Form implementation generated from reading ui file 'qaerochart_dockwidget_base.ui'
 #
@@ -122,4 +122,5 @@ class Ui_QAeroChartDockWidgetBase(object):
         self.btnDrawProfile.setText(_translate("QAeroChartDockWidgetBase", "📍 Draw"))
         self.btnDeleteProfile.setText(_translate("QAeroChartDockWidgetBase", "🗑️ Delete"))
         self.btnBackToMenu.setText(_translate("QAeroChartDockWidgetBase", "← Back to Menu"))
-        self.labelFormPlaceholder.setText(_translate("QAeroChartDockWidgetBase", "Profile form will be loaded here..."))
+        self.labelFormPlaceholder.setText(
+            _translate("QAeroChartDockWidgetBase", "Profile form will be loaded here..."))

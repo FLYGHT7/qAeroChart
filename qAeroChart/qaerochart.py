@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 """
 /***************************************************************************
  QAeroChart
@@ -77,7 +77,7 @@ class QAeroChart:
 
         self.pluginIsActive = False
         self.dockwidget = None
-        
+
         # Map tool manager (will be initialized in initGui)
         self.tool_manager = None
 
@@ -142,7 +142,8 @@ class QAeroChart:
         add_to_toolbar=True,
         status_tip=None,
         whats_this=None,
-        parent=None):
+        parent=None,
+    ):
         """Add a toolbar icon to the toolbar.
 
         :param icon_path: Path to the icon for this action. Can be a resource
@@ -242,7 +243,8 @@ class QAeroChart:
         hs_icon_path = os.path.join(self.plugin_dir, 'icons', 'icon_horizontal_scale.svg')
         if not os.path.exists(hs_icon_path):
             hs_icon_path = os.path.join(self.plugin_dir, 'icons', 'icon.png')
-        self.horizontal_scale_action = QAction(QIcon(hs_icon_path), self.tr('Horizontal Scale'), self.iface.mainWindow())
+        self.horizontal_scale_action = QAction(
+            QIcon(hs_icon_path), self.tr('Horizontal Scale'), self.iface.mainWindow())
         self.horizontal_scale_action.setObjectName('qAeroChartHorizontalScaleAction')
         self.horizontal_scale_action.setStatusTip(self.tr('Create horizontal scale (meters/feet)'))
         self.horizontal_scale_action.triggered.connect(self.open_horizontal_scale_dock)
@@ -298,7 +300,8 @@ class QAeroChart:
         gs_rod_icon_path = os.path.join(self.plugin_dir, 'icons', 'icon_gs_rod_table.svg')
         if not os.path.exists(gs_rod_icon_path):
             gs_rod_icon_path = icon_path
-        self.gs_rod_action = QAction(QIcon(gs_rod_icon_path), self.tr('GS / Rate of Descent Table'), self.iface.mainWindow())
+        self.gs_rod_action = QAction(
+            QIcon(gs_rod_icon_path), self.tr('GS / Rate of Descent Table'), self.iface.mainWindow())
         self.gs_rod_action.setObjectName('qAeroChartGsRodTableAction')
         self.gs_rod_action.setStatusTip(self.tr('Create a Ground Speed / Rate of Descent table'))
         self.gs_rod_action.triggered.connect(self._open_gs_rod_table_builder)
@@ -309,7 +312,8 @@ class QAeroChart:
         dat_icon_path = os.path.join(self.plugin_dir, 'icons', 'icon_distance_table.svg')
         if not os.path.exists(dat_icon_path):
             dat_icon_path = icon_path
-        self.distance_table_action = QAction(QIcon(dat_icon_path), self.tr('Add Distance/Altitude Table'), self.iface.mainWindow())
+        self.distance_table_action = QAction(
+            QIcon(dat_icon_path), self.tr('Add Distance/Altitude Table'), self.iface.mainWindow())
         self.distance_table_action.setObjectName('qAeroChartDistanceTableAction')
         self.distance_table_action.setStatusTip(self.tr('Insert a distance/altitude table into the active layout'))
         self.distance_table_action.triggered.connect(self._open_distance_table_builder)
@@ -345,7 +349,7 @@ class QAeroChart:
                 self.top_menu.addAction(self.oca_h_table_action)
         except Exception:
             pass
-        
+
         # Initialize map tool manager — wrapped in try/except so a failure here
         # does NOT prevent layer_manager / controller from initialising (the
         # critical path for creating layers).
@@ -442,7 +446,7 @@ class QAeroChart:
         if self.tool_manager:
             self.tool_manager.cleanup()
             self.tool_manager = None
-        
+
         # Clean up controller and managers
         self._controller = None
         self._profile_manager = None

@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 """
 HoldingLayerManager — creates and manages the 'Holding Nominal' QGIS memory layer.
 

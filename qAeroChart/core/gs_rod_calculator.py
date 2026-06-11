@@ -1,4 +1,4 @@
-"""Ground-speed / Rate-of-descent table computation engine.
+﻿"""Ground-speed / Rate-of-descent table computation engine.
 
 No Qt or QGIS dependencies — fully unit-testable.
 """

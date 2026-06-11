@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 """
 HorizontalScaleController — MVC mediator between HorizontalScaleDockWidget
 and HorizontalScaleManager / LayerManager.

@@ -1,4 +1,4 @@
-"""OCA/H table data model and table builder (Issue #74).
+﻿"""OCA/H table data model and table builder (Issue #74).
 
 No Qt or QGIS dependencies — fully unit-testable.
 """

@@ -1,4 +1,4 @@
-"""OCA/H Table dialog — interactive builder (Issue #74)."""
+﻿"""OCA/H Table dialog — interactive builder (Issue #74)."""
 from __future__ import annotations
 
 try:

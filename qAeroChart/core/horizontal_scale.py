@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 """
 horizontal_scale — Pure-geometry helpers for the horizontal scale bar.
 

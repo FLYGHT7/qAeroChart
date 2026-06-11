@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 """
 HoldingFixTool — map tool for selecting the holding fix point.
 

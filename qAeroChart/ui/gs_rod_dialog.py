@@ -1,4 +1,4 @@
-"""Dialog for creating and configuring a GS / Rate-of-Descent table (Issue #73).
+﻿"""Dialog for creating and configuring a GS / Rate-of-Descent table (Issue #73).
 
 Same style and layout conventions as DistanceAltitudeTableDialog.
 """

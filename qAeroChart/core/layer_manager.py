@@ -14,12 +14,10 @@ from qgis.core import (
     QgsVectorLayer,
     QgsField,
     QgsProject,
-    QgsLayerTreeGroup,
     QgsFeature,
     QgsGeometry,
     QgsPointXY,
     QgsCoordinateReferenceSystem,
-    Qgis
 )
 
 from .profile_chart_geometry import ProfileChartGeometry
@@ -30,17 +28,17 @@ from ..utils.qt_compat import Qt, QVariant, QgsUnitTypes, FontBold
 class LayerManager:
     """
     Manager for creating and handling aeronautical profile chart layers.
-    
+
     Creates and manages 5 memory layers:
     1. profile_point_symbol - Point symbols for profile points (MAPt, FAF, IF, etc.)
     2. profile_carto_label - Cartographic labels for profile points
     3. profile_line - Profile line connecting points
     4. profile_dist - Distance markers and annotations
     5. profile_MOCA - Minimum Obstacle Clearance Altitude indicators
-    
+
     All layers are organized under a "MAP 03 - Profile" group in the layer tree.
     """
-    
+
     # Layer names constants
     LAYER_POINT_SYMBOL = "profile_point_symbol"
     LAYER_CARTO_LABEL = "profile_carto_label"
@@ -48,39 +46,43 @@ class LayerManager:
     LAYER_MOCA = "profile_MOCA"
     LAYER_BASELINE = "profile_baseline"  # legacy; merged into profile_line (Issue #24)
     LAYER_VERTICAL_SCALE = "profile_vertical_scale"  # altitude scale bar (Issue #57)
-    
+
     # Group name
     GROUP_NAME = "MAP 03 - Profile"
-    
+
     def __init__(self, iface: object, crs: QgsCoordinateReferenceSystem | None = None) -> None:
         """
         Initialize the LayerManager.
-        
+
         Args:
             iface (QgisInterface): The QGIS interface object
             crs (QgsCoordinateReferenceSystem): CRS for layers (default: project CRS)
         """
         self.iface = iface
         self.project = QgsProject.instance()
-        
+
         # Store a fallback CRS if provided, but always prefer live project CRS at use time.
         # This prevents being stuck on a stale CRS after project changes.
         try:
             self.crs = crs if isinstance(crs, QgsCoordinateReferenceSystem) else None
         except Exception:
             self.crs = None
-        
+
         # Debug flag (can be overridden by config in create_all_layers)
         self.debug = True
 
         # Dictionary to store created layers
         self.layers = {}
-        
+
         # Group reference
         self.layer_group = None
-        
+
         try:
-            init_auth = (self.project.crs().authid() if self.project and self.project.crs().isValid() else (self.crs.authid() if self.crs else ''))
+            init_auth = (
+                self.project.crs().authid()
+                if self.project and self.project.crs().isValid()
+                else (self.crs.authid() if self.crs else '')
+            )
             log(f"LayerManager initialized with CRS: {init_auth}")
         except Exception:
             log("LayerManager initialized (CRS unknown)")
@@ -166,14 +168,18 @@ class LayerManager:
             auth = proj.authid() if proj else ""
             desc = proj.description() if proj else ""
             units = self._crs_map_units()
-            self._dbg(f"CRS guard -> valid={valid} geographic={geographic} ok={ok} authid={auth} units={units} desc='{desc}'")
+            self._dbg(
+                f"CRS guard -> valid={valid} geographic={geographic} ok={ok}"
+                f" authid={auth} units={units} desc='{desc}'"
+            )
 
             if not ok and show_message:
                 try:
                     if self.iface:
                         self.iface.messageBar().pushWarning(
                             "qAeroChart",
-                            f"Projected CRS required. Current: {auth} ({desc}). Switch to a projected CRS (meters/feet)."
+                            f"Projected CRS required. Current: {auth} ({desc})."
+                            " Switch to a projected CRS (meters/feet)."
                         )
                 except Exception:
                     pass
@@ -194,7 +200,6 @@ class LayerManager:
         try:
             level_upper = (level or "INFO").upper()
             if self.iface:
-                from qgis.core import Qgis
                 if level_upper == "ERROR":
                     self.iface.messageBar().pushCritical("qAeroChart", msg)
                 elif level_upper == "WARN":
@@ -306,14 +311,14 @@ class LayerManager:
                 layer.setCrs(proj_crs)
         except Exception as e:
             self._dbg(f"Could not set layer CRS: {e}")
-    
+
     def create_all_layers(self, config=None):
         """
         Create all 5 profile chart layers and organize them in a group.
-        
+
         Args:
             config (dict): Optional configuration with style parameters
-        
+
         Returns:
             dict: Dictionary with layer names as keys and QgsVectorLayer objects as values
         """
@@ -325,33 +330,44 @@ class LayerManager:
             pass
 
         self._dbg("Starting create_all_layers()")
-        print(f"[qAeroChart] create_all_layers() called")
+        print("[qAeroChart] create_all_layers() called")
         log("Creating all profile layers...")
         # Enforce projected CRS; allow override via style.allow_geographic
         allow_geo = False
         try:
-            allow_geo = bool(config.get('style', {}).get('allow_geographic', False)) if isinstance(config, dict) else False
+            allow_geo = (
+                bool(config.get('style', {}).get('allow_geographic', False))
+                if isinstance(config, dict) else False
+            )
         except Exception:
             allow_geo = False
         self._dbg(f"create_all_layers: allow_geographic={allow_geo}")
         # Diagnostic: print CRS details before guard
         try:
             proj_crs = self.project.crs() if self.project else None
-            print(f"[qAeroChart][DIAG] CRS before guard: authid={proj_crs.authid() if proj_crs else 'N/A'}, isValid={proj_crs.isValid() if proj_crs else 'N/A'}, isGeographic={proj_crs.isGeographic() if proj_crs else 'N/A'}")
+            print(
+                f"[qAeroChart][DIAG] CRS before guard:"
+                f" authid={proj_crs.authid() if proj_crs else 'N/A'},"
+                f" isValid={proj_crs.isValid() if proj_crs else 'N/A'},"
+                f" isGeographic={proj_crs.isGeographic() if proj_crs else 'N/A'}"
+            )
             raw_units = getattr(proj_crs, 'mapUnits', lambda: None)() if proj_crs else None
-            print(f"[qAeroChart][DIAG] mapUnits raw={raw_units!r}, type={type(raw_units).__name__ if raw_units is not None else 'N/A'}")
+            print(
+                f"[qAeroChart][DIAG] mapUnits raw={raw_units!r},"
+                f" type={type(raw_units).__name__ if raw_units is not None else 'N/A'}"
+            )
         except Exception as diag_e:
             print(f"[qAeroChart][DIAG] CRS diagnostic failed: {diag_e}")
         guard_result = self._crs_guard(enforce_block=(not allow_geo), show_message=True)
         print(f"[qAeroChart][DIAG] _crs_guard returned: {guard_result}")
         if not guard_result:
             self._log("Aborting layer creation due to geographic/invalid CRS", level="WARN")
-            print(f"[qAeroChart][DIAG] ABORTING create_all_layers due to CRS guard failure!")
+            print("[qAeroChart][DIAG] ABORTING create_all_layers due to CRS guard failure!")
             return {}
-        
+
         # Create group first
         self._create_layer_group()
-        
+
         # Create each layer (baseline merged into profile_line per Issue #24)
         for _layer_key, _layer_factory in [
             (self.LAYER_POINT_SYMBOL, self._create_point_symbol_layer),
@@ -370,20 +386,23 @@ class LayerManager:
         # Emit validity and field diagnostics
         for k, lyr in self.layers.items():
             try:
-                self._dbg(f"Layer '{k}': valid={lyr.isValid()} CRS={lyr.crs().authid()} fields={[f.name() for f in lyr.fields()]}")
+                self._dbg(
+                    f"Layer '{k}': valid={lyr.isValid()}"
+                    f" CRS={lyr.crs().authid()} fields={[f.name() for f in lyr.fields()]}"
+                )
             except Exception as e:
                 self._log(f"Diag failed for layer '{k}': {e}", level="WARN")
-        
+
         print(f"[qAeroChart] Layers in self.layers after creation: {list(self.layers.keys())}")
         # Add layers to group and apply styles
         self._add_layers_to_group(config)
-        
+
         log(f"Created {len(self.layers)} layers in group '{self.GROUP_NAME}'")
         print(f"[qAeroChart] create_all_layers() done — {len(self.layers)} layers added to group")
         self._dbg("Finished create_all_layers()")
-        
+
         return self.layers
-    
+
     def _find_group(self):
         """Return a *fresh* reference to this manager's layer-tree group.
 
@@ -401,17 +420,20 @@ class LayerManager:
         """Create or get the layer group for profile charts."""
         root = self.project.layerTreeRoot()
         print(f"[qAeroChart][GROUP] _create_layer_group: root={root!r}, GROUP_NAME='{self.GROUP_NAME}'")
-        
+
         # Check if group already exists
         existing_group = root.findGroup(self.GROUP_NAME)
-        print(f"[qAeroChart][GROUP] findGroup returned: {existing_group!r}, bool={bool(existing_group) if existing_group is not None else 'is-None'}")
-        
+        print(
+            f"[qAeroChart][GROUP] findGroup returned: {existing_group!r},"
+            f" bool={bool(existing_group) if existing_group is not None else 'is-None'}"
+        )
+
         # SIP6 FIX: QgsLayerTreeGroup.__bool__() returns False for valid
         # objects in QGIS 4.  Always use 'is not None' instead of truthiness.
         if existing_group is not None:
             self.layer_group = existing_group
             log(f"Using existing group '{self.GROUP_NAME}'")
-            print(f"[qAeroChart][GROUP] Reusing existing group")
+            print("[qAeroChart][GROUP] Reusing existing group")
         else:
             new_group = root.addGroup(self.GROUP_NAME)
             print(f"[qAeroChart][GROUP] addGroup returned: {new_group!r}")
@@ -426,24 +448,24 @@ class LayerManager:
             pass
 
         # Respect user layer tree order (Issue #11): do not auto-reorder/move group
-    
+
     def _create_point_symbol_layer(self):
         """
         Create the profile_point_symbol layer for point symbols.
-        
+
         Fields:
         - point_name: Name/identifier (MAPt, FAF, IF, etc.)
         - point_type: Type of point (fix, navaid, threshold, etc.)
         - distance: Distance from reference point (NM)
         - elevation: Elevation above MSL (ft)
         - notes: Additional notes
-        
+
         Returns:
             QgsVectorLayer: The created layer
         """
         # Create memory layer
         layer = self._create_memory_layer('Point', self.LAYER_POINT_SYMBOL)
-        
+
         # Add fields
         provider = layer.dataProvider()
         provider.addAttributes([
@@ -454,15 +476,15 @@ class LayerManager:
             QgsField("notes", QVariant.String, len=255)
         ])
         layer.updateFields()
-        
+
         log(f"Created layer '{self.LAYER_POINT_SYMBOL}' with {layer.fields().count()} fields")
-        
+
         return layer
-    
+
     def _create_carto_label_layer(self):
         """
         Create the profile_carto_label layer for cartographic labels.
-        
+
         Fields (Issue #25 unified schema):
         - id (string)
         - txt_label (string)      [prev: label_text]
@@ -473,12 +495,12 @@ class LayerManager:
         - txt_rotation (double)   [prev: rotation]
         - txt_justified (string)
         - mask (bool)
-        
+
         Returns:
             QgsVectorLayer: The created layer
         """
         layer = self._create_memory_layer('Point', self.LAYER_CARTO_LABEL, id_type=QVariant.String)
-        
+
         provider = layer.dataProvider()
         provider.addAttributes([
             QgsField("txt_label", QVariant.String, len=100),
@@ -491,26 +513,26 @@ class LayerManager:
             QgsField("mask", QVariant.Bool)
         ])
         layer.updateFields()
-        
+
         log(f"Created layer '{self.LAYER_CARTO_LABEL}' with {layer.fields().count()} fields")
-        
+
         return layer
-    
+
     def _create_line_layer(self):
         """
         Create the profile_line layer for the main profile line.
-        
+
         Fields:
         - line_type: Type of line (profile, approach, etc.)
         - segment_name: Name of the segment
         - gradient: Gradient/slope of the segment
-        
+
         Returns:
             QgsVectorLayer: The created layer
         """
         # Unified schema for merged line layer (#40): id (string), symbol, txt_label, remarks
         layer = self._create_memory_layer('LineString', self.LAYER_LINE, id_type=QVariant.String)
-        
+
         provider = layer.dataProvider()
         provider.addAttributes([
             QgsField("symbol", QVariant.String, len=30),
@@ -518,16 +540,15 @@ class LayerManager:
             QgsField("remarks", QVariant.String, len=80)
         ])
         layer.updateFields()
-        
+
         log(f"Created layer '{self.LAYER_LINE}' with {layer.fields().count()} fields")
-        
+
         return layer
 
     # Removed separate key verticals/dist layers per #40 merge
-    
+
     # _create_dist_layer removed per #40 (distance markers merged into profile_line)
 
-    
     def _create_vertical_scale_layer(self) -> QgsVectorLayer:
         """Create the profile_vertical_scale layer for the altitude scale bar (Issue #57)."""
         layer = self._create_memory_layer('LineString', self.LAYER_VERTICAL_SCALE)
@@ -542,19 +563,19 @@ class LayerManager:
     def _create_moca_layer(self):
         """
         Create the profile_MOCA layer for Minimum Obstacle Clearance Altitude.
-        
+
         Uses Polygon geometry to display MOCA areas with diagonal hatching.
-        
+
         Fields:
         - moca: MOCA value (ft)
         - segment_name: Associated segment
         - clearance: Clearance above obstacles (ft)
-        
+
         Returns:
             QgsVectorLayer: The created layer
         """
         layer = self._create_memory_layer('Polygon', self.LAYER_MOCA)
-        
+
         provider = layer.dataProvider()
         provider.addAttributes([
             QgsField("moca", QVariant.Double),
@@ -562,15 +583,15 @@ class LayerManager:
             QgsField("clearance", QVariant.Double)
         ])
         layer.updateFields()
-        
+
         log(f"Created layer '{self.LAYER_MOCA}' with {layer.fields().count()} fields")
-        
+
         return layer
-    
+
     def _add_layers_to_group(self, config=None):
         """
         Add all created layers to the layer group and apply styles.
-        
+
         Args:
             config (dict): Optional configuration with style parameters
         """
@@ -597,7 +618,7 @@ class LayerManager:
             print("[qAeroChart][GROUP] FATAL: Cannot find or create layer group — aborting")
             log("Layer group not found after re-creation attempt", "ERROR")
             return
-        
+
         # Add layers to project and group in specific order
         # Order layers so the profile line is above MOCA for visibility
         layer_order = [
@@ -607,19 +628,29 @@ class LayerManager:
             self.LAYER_MOCA,
             self.LAYER_VERTICAL_SCALE,
         ]
-        
-        print(f"[qAeroChart][DIAG] _add_layers_to_group: layer_group={self.layer_group!r}, layers_keys={list(self.layers.keys())}")
+
+        print(
+            f"[qAeroChart][DIAG] _add_layers_to_group:"
+            f" layer_group={self.layer_group!r}, layers_keys={list(self.layers.keys())}"
+        )
         for layer_name in layer_order:
             if layer_name in self.layers:
                 layer = self.layers[layer_name]
-                print(f"[qAeroChart][DIAG] Processing '{layer_name}': type={type(layer).__name__}, valid={layer.isValid()}, id={layer.id()}")
+                print(
+                    f"[qAeroChart][DIAG] Processing '{layer_name}':"
+                    f" type={type(layer).__name__}, valid={layer.isValid()}, id={layer.id()}"
+                )
                 # Add to project
                 # Ensure CRS before adding (belt-and-suspenders)
                 self._ensure_layer_crs(layer)
                 # Use the returned reference: in QGIS 4 / PyQt6, the original
                 # Python wrapper may become stale after C++ takes ownership.
                 registered = self.project.addMapLayer(layer, False)
-                print(f"[qAeroChart][DIAG] addMapLayer('{layer_name}') returned: {type(registered).__name__ if registered else None}, same_obj={registered is layer}")
+                print(
+                    f"[qAeroChart][DIAG] addMapLayer('{layer_name}') returned:"
+                    f" {type(registered).__name__ if registered else None},"
+                    f" same_obj={registered is layer}"
+                )
                 if registered is None:
                     print(f"[qAeroChart][DIAG] WARNING: addMapLayer returned None for '{layer_name}'")
                     continue
@@ -635,17 +666,25 @@ class LayerManager:
                 print(f"[qAeroChart][DIAG] addLayer('{layer_name}') returned tree_layer={tree_layer!r}")
                 log(f"Added '{layer_name}' to group")
                 try:
-                    self._dbg(f"  -> layer '{layer_name}' valid={registered.isValid()} count={registered.featureCount()} extent={[registered.extent().xMinimum(), registered.extent().yMinimum(), registered.extent().xMaximum(), registered.extent().yMaximum()]}")
+                    ext = registered.extent()
+                    bbox = [ext.xMinimum(), ext.yMinimum(), ext.xMaximum(), ext.yMaximum()]
+                    self._dbg(
+                        f"  -> layer '{layer_name}' valid={registered.isValid()}"
+                        f" count={registered.featureCount()} extent={bbox}"
+                    )
                 except Exception:
                     pass
             else:
                 print(f"[qAeroChart][DIAG] '{layer_name}' NOT in self.layers, skipping")
-        
+
         # Final group check (re-find for fresh reference)
         group = self._find_group()
         if group is not None:
             self.layer_group = group
-        print(f"[qAeroChart][DIAG] After adding all layers: group children count={len(self.layer_group.children()) if self.layer_group is not None else 'N/A'}")
+        print(
+            "[qAeroChart][DIAG] After adding all layers: group children count="
+            f"{len(self.layer_group.children()) if self.layer_group is not None else 'N/A'}"
+        )
         try:
             for child in (self.layer_group.children() if self.layer_group is not None else []):
                 print(f"[qAeroChart][DIAG]   child: {child.name()}, type={type(child).__name__}")
@@ -682,7 +721,7 @@ class LayerManager:
                 self._dbg("Disabled custom layer order (WYSIWYG rendering order)")
         except Exception as e:
             self._log(f"Could not disable custom layer order: {e}", level="WARN")
-    
+
     def _apply_basic_styles(self, config=None):
         """
         Apply basic symbology to layers to make them visible.
@@ -698,7 +737,6 @@ class LayerManager:
         from qgis.core import (
             QgsSymbol,
             QgsSimpleLineSymbolLayer,
-            QgsSimpleMarkerSymbolLayer,
             QgsTextFormat,
             QgsPalLayerSettings,
             QgsVectorLayerSimpleLabeling,
@@ -714,19 +752,19 @@ class LayerManager:
         print("[qAeroChart][STYLES] _apply_basic_styles() ENTER")
 
         # Minimal, fixed styling (Issue #9)
-        style = config.get('style', {}) if config else {}
-        line_width = 2.0
         moca_border_width = 1.0
         point_size = 5.0
         line_color = '#000000'
-        moca_fill = '#6464FF64'
         moca_hatch = '#000000'
 
         # ---- PROFILE_LINE ----
         line_layer = self.layers.get(self.LAYER_LINE)
         if line_layer:
             try:
-                print(f"[qAeroChart][STYLES] Styling PROFILE_LINE: valid={line_layer.isValid()}, renderer={line_layer.renderer()!r}")
+                print(
+                    f"[qAeroChart][STYLES] Styling PROFILE_LINE:"
+                    f" valid={line_layer.isValid()}, renderer={line_layer.renderer()!r}"
+                )
                 simple = QgsSimpleLineSymbolLayer()
                 simple.setColor(QColor(line_color))
                 try:
@@ -755,7 +793,10 @@ class LayerManager:
         point_layer = self.layers.get(self.LAYER_POINT_SYMBOL)
         if point_layer:
             try:
-                print(f"[qAeroChart][STYLES] Styling PROFILE_POINT_SYMBOL: valid={point_layer.isValid()}, geomType={point_layer.geometryType()!r}")
+                print(
+                    f"[qAeroChart][STYLES] Styling PROFILE_POINT_SYMBOL:"
+                    f" valid={point_layer.isValid()}, geomType={point_layer.geometryType()!r}"
+                )
                 symbol = QgsSymbol.defaultSymbol(point_layer.geometryType())
                 print(f"[qAeroChart][STYLES]   defaultSymbol: {symbol!r}")
                 symbol.setColor(QColor(255, 0, 0))  # Red
@@ -771,7 +812,7 @@ class LayerManager:
                     point_layer.setRenderer(QgsSingleSymbolRenderer(symbol))
                 point_layer.triggerRepaint()
                 print("[qAeroChart][STYLES]   PROFILE_POINT_SYMBOL styled OK")
-                log(f"Applied style to profile_point_symbol (visible=True)")
+                log("Applied style to profile_point_symbol (visible=True)")
             except Exception as e:
                 print(f"[qAeroChart][STYLES] ERROR styling PROFILE_POINT_SYMBOL: {e}")
                 _tb.print_exc()
@@ -783,8 +824,11 @@ class LayerManager:
         moca_layer = self.layers.get(self.LAYER_MOCA)
         if moca_layer:
             try:
-                from qgis.core import QgsFillSymbol, QgsLinePatternFillSymbolLayer, QgsSimpleFillSymbolLayer
-                print(f"[qAeroChart][STYLES] Styling PROFILE_MOCA: valid={moca_layer.isValid()}, renderer={moca_layer.renderer()!r}")
+                from qgis.core import QgsFillSymbol, QgsLinePatternFillSymbolLayer
+                print(
+                    f"[qAeroChart][STYLES] Styling PROFILE_MOCA:"
+                    f" valid={moca_layer.isValid()}, renderer={moca_layer.renderer()!r}"
+                )
 
                 color_str = '0,0,0,0'
                 symbol = QgsFillSymbol.createSimple({
@@ -920,12 +964,12 @@ class LayerManager:
 
         print("[qAeroChart][STYLES] _apply_basic_styles() EXIT")
         # KEY VERTICALS merged into PROFILE_LINE per #40
-    
-    def add_point_feature(self, point, point_name, point_type="fix", 
-                         distance=0.0, elevation=0.0, notes=""):
+
+    def add_point_feature(self, point, point_name, point_type="fix",
+                          distance=0.0, elevation=0.0, notes=""):
         """
         Add a point feature to the profile_point_symbol layer.
-        
+
         Args:
             point (QgsPointXY): Point coordinates
             point_name (str): Name/identifier of the point
@@ -933,7 +977,7 @@ class LayerManager:
             distance (float): Distance from reference (NM)
             elevation (float): Elevation above MSL (ft)
             notes (str): Additional notes
-        
+
         Returns:
             bool: True if feature was added successfully
         """
@@ -941,7 +985,7 @@ class LayerManager:
         if not layer:
             log("Point symbol layer not found", "ERROR")
             return False
-        
+
         feature = QgsFeature()
         feature.setFields(layer.fields())
         feature.setGeometry(QgsGeometry.fromPointXY(point))
@@ -952,29 +996,29 @@ class LayerManager:
         feature.setAttribute("distance", float(distance))
         feature.setAttribute("elevation", float(elevation))
         feature.setAttribute("notes", notes)
-        
+
         layer.startEditing()
         success = layer.addFeature(feature)
         layer.commitChanges()
-        
+
         if success:
             layer.triggerRepaint()  # Force visual refresh
             log(f"Added point '{point_name}' at ({point.x():.2f}, {point.y():.2f})")
-        
+
         return success
-    
-    def add_label_feature(self, point, label_text, label_type="point_name", 
-                         rotation=0.0, font_size=10, *, bold=False, html=False, txt_justified="", mask=False):
+
+    def add_label_feature(self, point, label_text, label_type="point_name",
+                          rotation=0.0, font_size=10, *, bold=False, html=False, txt_justified="", mask=False):
         """
         Add a label feature to the profile_carto_label layer.
-        
+
         Args:
             point (QgsPointXY): Label position
             label_text (str): Text to display
             label_type (str): Type of label
             rotation (float): Text rotation angle
             font_size (int): Font size
-        
+
         Returns:
             bool: True if feature was added successfully
         """
@@ -982,7 +1026,7 @@ class LayerManager:
         if not layer:
             log("Carto label layer not found", "ERROR")
             return False
-        
+
         feature = QgsFeature()
         feature.setFields(layer.fields())
         feature.setGeometry(QgsGeometry.fromPointXY(point))
@@ -997,27 +1041,27 @@ class LayerManager:
         feature.setAttribute("html", bool(html))
         feature.setAttribute("txt_justified", txt_justified)
         feature.setAttribute("mask", bool(mask))
-        
+
         layer.startEditing()
         success = layer.addFeature(feature)
         layer.commitChanges()
-        
+
         if success:
             layer.triggerRepaint()  # Force visual refresh
             log(f"Added label '{label_text}' at ({point.x():.2f}, {point.y():.2f})")
-        
+
         return success
-    
+
     def add_line_feature(self, points, line_type="profile", segment_name="", gradient=0.0):
         """
         Add a line feature to the profile_line layer.
-        
+
         Args:
             points (list): List of QgsPointXY defining the line
             line_type (str): Type of line
             segment_name (str): Name of the segment
             gradient (float): Gradient/slope
-        
+
         Returns:
             bool: True if feature was added successfully
         """
@@ -1025,7 +1069,7 @@ class LayerManager:
         if not layer:
             log("Line layer not found", "ERROR")
             return False
-        
+
         feature = QgsFeature()
         feature.setFields(layer.fields())
         feature.setGeometry(QgsGeometry.fromPolylineXY(points))
@@ -1035,17 +1079,17 @@ class LayerManager:
         feature.setAttribute("symbol", str(line_type))
         feature.setAttribute("txt_label", str(segment_name))
         feature.setAttribute("remarks", "")
-        
+
         layer.startEditing()
         success = layer.addFeature(feature)
         layer.commitChanges()
-        
+
         if success:
             layer.triggerRepaint()  # Force visual refresh
             log(f"Added line segment '{segment_name}' with {len(points)} points")
-        
+
         return success
-    
+
     def clear_all_layers(self):
         """Clear all features from all managed layers."""
         for layer_name, layer in self.layers.items():
@@ -1054,14 +1098,14 @@ class LayerManager:
                 layer.deleteFeatures(layer.allFeatureIds())
                 layer.commitChanges()
                 log(f"Cleared layer '{layer_name}'")
-    
+
     def remove_all_layers(self):
         """Remove all managed layers from the project."""
         for layer_name, layer in self.layers.items():
             if layer:
                 self.project.removeMapLayer(layer.id())
                 log(f"Removed layer '{layer_name}'")
-        
+
         # Remove group if empty — re-find to avoid stale SIP6 wrapper
         group = self._find_group()
         if group is not None:
@@ -1069,29 +1113,29 @@ class LayerManager:
             if len(group.children()) == 0:
                 root.removeChildNode(group)
                 log(f"Removed empty group '{self.GROUP_NAME}'")
-        
+
         self.layers.clear()
         self.layer_group = None
-    
+
     def get_layer(self, layer_name):
         """
         Get a specific layer by name.
-        
+
         Args:
             layer_name (str): Name of the layer
-        
+
         Returns:
             QgsVectorLayer: The layer or None if not found
         """
         return self.layers.get(layer_name)
-    
+
     def layer_exists(self, layer_name):
         """
         Check if a layer exists.
-        
+
         Args:
             layer_name (str): Name of the layer
-        
+
         Returns:
             bool: True if layer exists
         """
@@ -1144,7 +1188,6 @@ class LayerManager:
                 QgsFeature,
                 QgsVectorLayer,
                 QgsField,
-                QgsLayerTree,
                 QgsProject as _QgsProject,
                 QgsPalLayerSettings,
                 QgsTextFormat,
@@ -1170,7 +1213,6 @@ class LayerManager:
         )
 
         half_sp = offsets["half_spacing"]
-        sec_off = offsets["sec_offset"]
         small_len = tick_len * 0.45
         srid = self._get_srid()
 
@@ -1179,7 +1221,7 @@ class LayerManager:
         # perpendicular offset → baseline
         base_centre = origin.project(abs(offset), angle + (90.0 if offset >= 0 else -90.0))
         base_right = base_centre.project(half_sp, angle + 90.0)   # metres side
-        base_left  = base_centre.project(half_sp, angle - 90.0)   # feet side
+        base_left = base_centre.project(half_sp, angle - 90.0)   # feet side
 
         # ---- create Lines layer ----
         lines_layer = QgsVectorLayer(
@@ -1673,7 +1715,7 @@ class LayerManager:
             pass
         return "EPSG:4326"
 
-    
+    def draw_vertical_scale(self, config):
         """Draw the double-sided altitude scale bar for the profile (Issue #57).
 
         Faithfully ports scripts/Vertical_Scale.py: places a scale bar at the
@@ -1791,10 +1833,10 @@ class LayerManager:
         """
         Populate all layers with profile data from configuration.
         Uses ProfileChartGeometry for cartesian calculations.
-        
+
         Args:
             config (dict): Configuration dictionary with origin_point, runway, and profile_points
-        
+
         Returns:
             bool: True if successful
         """
@@ -1807,30 +1849,33 @@ class LayerManager:
         # Respect same override inside population
         allow_geo = False
         try:
-            allow_geo = bool(config.get('style', {}).get('allow_geographic', False)) if isinstance(config, dict) else False
+            allow_geo = (
+                bool(config.get('style', {}).get('allow_geographic', False))
+                if isinstance(config, dict) else False
+            )
         except Exception:
             allow_geo = False
         self._dbg(f"populate_layers_from_config: allow_geographic={allow_geo}")
         if not self._crs_guard(enforce_block=(not allow_geo), show_message=True):
             log("Profile population blocked due to geographic/invalid CRS", "ERROR")
             return False
-        
+
         # Extract origin point (v2.0 uses "origin_point", v1.0 uses "reference_point")
         origin_data = config.get('origin_point', config.get('reference_point', {}))
         if not origin_data or 'x' not in origin_data or 'y' not in origin_data:
             log("No origin point in configuration", "ERROR")
             log("origin_data = {origin_data}", "ERROR")
             return False
-        
+
         origin_point = QgsPointXY(origin_data['x'], origin_data['y'])
         log(f"*** ORIGIN POINT SET TO: X={origin_point.x():.2f}, Y={origin_point.y():.2f} ***")
-        
+
         # Extract profile points and runway parameters
         profile_points = config.get('profile_points', [])
         if not profile_points:
             log("No profile points in configuration", "WARNING")
             return False
-        
+
         runway = config.get('runway', {})
         runway_length = float(runway.get('length', 0))
         tch = float(runway.get('tch_rdh', 0))
@@ -1840,7 +1885,7 @@ class LayerManager:
         except Exception:
             thr_ft = 0.0
         self._dbg(f"Runway params -> length={runway_length}m, TCH={tch}m; profile_points={len(profile_points)}")
-        
+
         # Initialize geometry calculator with vertical exaggeration (default 10x)
         ve = 10.0
         try:
@@ -1854,17 +1899,19 @@ class LayerManager:
             rwy_num = int(''.join(ch for ch in dir_text if ch.isdigit())[:2] or 0)
         except Exception:
             rwy_num = 0
-        # If RWY direction <= 18 then draw rightâ†’left (dir_sign = -1), else leftâ†’right
+        # If RWY direction <= 18 then draw rightâ†'left (dir_sign = -1), else leftâ†'right
         dir_sign = -1 if rwy_num and rwy_num <= 18 else 1
-        self._dbg(f"Geometry setup -> origin=({origin_point.x():.3f},{origin_point.y():.3f}) VE={ve} dir_sign={dir_sign} (RWY='{dir_text}')")
+        self._dbg(
+            f"Geometry setup -> origin=({origin_point.x():.3f},{origin_point.y():.3f})"
+            f" VE={ve} dir_sign={dir_sign} (RWY='{dir_text}')"
+        )
         geometry = ProfileChartGeometry(origin_point, vertical_exaggeration=ve, horizontal_direction=dir_sign)
-        
+
         # BATCH OPERATIONS: Collect all features first, then add in bulk
         point_features = []
         label_features = []
         line_features = []
         moca_features = []
-        baseline_features = []  # legacy list; baseline will be added to profile_line
 
         # Per-layer ID counters (start at 1)
         next_id = {
@@ -1873,22 +1920,22 @@ class LayerManager:
             self.LAYER_LINE: 1,
             self.LAYER_MOCA: 1,
         }
-        
+
         # Get layer references
         layer_point = self.layers.get(self.LAYER_POINT_SYMBOL)
         layer_label = self.layers.get(self.LAYER_CARTO_LABEL)
         layer_line = self.layers.get(self.LAYER_LINE)
         layer_moca = self.layers.get(self.LAYER_MOCA)
-        
+
         # Style cleanup (Issue #9): ORIGIN marker toggle removed; no origin feature added
         style = config.get('style', {}) if config else {}
-        
+
         # 2. Prepare profile line
         self._dbg("PHASE: PROFILE LINE start")
         if len(profile_points) >= 2:
-            log(f"=== CREATING PROFILE LINE ===")
+            log("=== CREATING PROFILE LINE ===")
             log(f"Number of profile points: {len(profile_points)}")
-            
+
             # Use THR-relative elevation for drawing
             profile_points_rel = []
             for p in profile_points:
@@ -1902,26 +1949,26 @@ class LayerManager:
                 profile_points_rel.append(q)
 
             line_points = geometry.create_profile_line(profile_points_rel)
-            
+
             log(f"Profile line returned {len(line_points) if line_points else 0} points")
-            
+
             if line_points and layer_line:
                 # Debug: Print all line points
                 for i, pt in enumerate(line_points):
                     log(f"  Point {i}: X={pt.x():.2f}, Y={pt.y():.2f}")
-                
+
                 feat = QgsFeature()
                 feat.setFields(layer_line.fields())
                 geom = QgsGeometry.fromPolylineXY(line_points)
-                
+
                 # Validate geometry
                 if geom.isGeosValid():
-                    log(f"âœ… Profile line geometry is VALID")
+                    log("âœ… Profile line geometry is VALID")
                 else:
                     log(f"âŒ Profile line geometry is INVALID: {geom.lastError()}")
-                
+
                 log(f"Geometry type: {geom.type()}, WKT length: {len(geom.asWkt())}")
-                
+
                 feat.setGeometry(geom)
                 # Set attributes following unified profile_line schema (Issue #24/#40)
                 feat.setAttribute("symbol", "profile")
@@ -1929,21 +1976,26 @@ class LayerManager:
                 feat.setAttribute("remarks", "")
                 self._assign_feature_id(feat, self.LAYER_LINE, next_id)
                 line_features.append(feat)
-                log(f"âœ… Profile line feature added to batch")
+                log("âœ… Profile line feature added to batch")
                 # Slope labels per segment
                 try:
                     sorted_pts = sorted(profile_points_rel, key=lambda p: float(p.get('distance_nm', 0)))
                     for i in range(len(sorted_pts)-1):
                         p1 = sorted_pts[i]
                         p2 = sorted_pts[i+1]
-                        grad_percent = geometry.calculate_gradient((float(p1.get('distance_nm',0)), float(p1.get('elevation_ft',0))),
-                                                                   (float(p2.get('distance_nm',0)), float(p2.get('elevation_ft',0))))
+                        grad_percent = geometry.calculate_gradient(
+                            (float(p1.get('distance_nm', 0)), float(p1.get('elevation_ft', 0))),
+                            (float(p2.get('distance_nm', 0)), float(p2.get('elevation_ft', 0)))
+                        )
                         import math
                         deg = math.degrees(math.atan(grad_percent/100.0))
                         text = f"{deg:.1f}Â° ({grad_percent:.1f}%)"
-                        mid_nm = (float(p1.get('distance_nm',0)) + float(p2.get('distance_nm',0)))/2.0
+                        mid_nm = (float(p1.get('distance_nm', 0)) + float(p2.get('distance_nm', 0))) / 2.0
                         # Keep visual offset roughly constant despite VE
-                        mid_ft_rel = (float(p1.get('elevation_ft',0)) + float(p2.get('elevation_ft',0)))/2.0 + (80.0/ve)
+                        mid_ft_rel = (
+                            (float(p1.get('elevation_ft', 0)) + float(p2.get('elevation_ft', 0))) / 2.0
+                            + (80.0 / ve)
+                        )
                         pos = geometry.calculate_profile_point(mid_nm, mid_ft_rel)
                         if layer_label:
                             lf = QgsFeature()
@@ -1962,30 +2014,30 @@ class LayerManager:
         else:
             log(f"âŒ Not enough points for profile line ({len(profile_points)} points)")
         self._dbg("PHASE: PROFILE LINE end")
-        
+
         # 3. Prepare runway line
         self._dbg("PHASE: RUNWAY LINE start")
         if runway_length > 0:
-            log(f"=== CREATING RUNWAY LINE ===")
+            log("=== CREATING RUNWAY LINE ===")
             log(f"Runway length: {runway_length}m, TCH: {tch}m")
-            
+
             runway_points = geometry.create_runway_line(runway_length, tch)
-            
+
             if runway_points and layer_line:
                 # Debug: Print runway points
                 for i, pt in enumerate(runway_points):
                     log(f"  Runway point {i}: X={pt.x():.2f}, Y={pt.y():.2f}")
-                
+
                 feat = QgsFeature()
                 feat.setFields(layer_line.fields())
                 geom = QgsGeometry.fromPolylineXY(runway_points)
-                
+
                 # Validate geometry
                 if geom.isGeosValid():
-                    log(f"âœ… Runway geometry is VALID")
+                    log("âœ… Runway geometry is VALID")
                 else:
                     log(f"âŒ Runway geometry is INVALID: {geom.lastError()}")
-                
+
                 feat.setGeometry(geom)
                 # Unified schema attributes
                 feat.setAttribute("symbol", "runway")
@@ -1993,13 +2045,13 @@ class LayerManager:
                 feat.setAttribute("remarks", "")
                 self._assign_feature_id(feat, self.LAYER_LINE, next_id)
                 line_features.append(feat)
-                log(f"âœ… Runway line feature added to batch")
+                log("âœ… Runway line feature added to batch")
             else:
-                log(f"âŒ Runway line NOT created")
+                log("âŒ Runway line NOT created")
         else:
-            log(f"âš ï¸ Runway length is 0, skipping runway line")
+            log("âš ï¸ Runway length is 0, skipping runway line")
         self._dbg("PHASE: RUNWAY LINE end")
-        
+
         # 4. Prepare profile points with symbols and labels
         # Compute dynamic vertical height reference for key vertical lines (Issue #16)
         try:
@@ -2010,7 +2062,10 @@ class LayerManager:
         max_elevation_ft_rel = max_elevation_ft - thr_ft
         vertical_extra_m = 1000.0  # required extra height above highest point (meters)
         vertical_top_ft = max_elevation_ft_rel + vertical_extra_m * ProfileChartGeometry.METERS_TO_FT
-        self._dbg(f"Key verticals dynamic height -> max_elev_ft={max_elevation_ft:.2f} ft, extra={vertical_extra_m} m, top_ft={vertical_top_ft:.2f} ft")
+        self._dbg(
+            f"Key verticals dynamic height -> max_elev_ft={max_elevation_ft:.2f} ft,"
+            f" extra={vertical_extra_m} m, top_ft={vertical_top_ft:.2f} ft"
+        )
         self._dbg("PHASE: POINTS & LABELS start")
         for point_data in profile_points:
             try:
@@ -2019,11 +2074,11 @@ class LayerManager:
                 point_name = point_data.get('point_name', 'Unknown')
                 moca_ft = point_data.get('moca_ft', '')
                 notes = point_data.get('notes', '')
-                
+
                 # Calculate cartesian position
                 # Draw using THR-relative elevation
                 point_xy = geometry.calculate_profile_point(distance_nm, elevation_ft - thr_ft)
-                
+
                 # Prepare point symbol
                 if layer_point:
                     feat = QgsFeature()
@@ -2038,7 +2093,7 @@ class LayerManager:
                     feat.setAttribute("elevation", float(elevation_ft))
                     feat.setAttribute("notes", notes)
                     point_features.append(feat)
-                
+
                 # Prepare label
                 if layer_label:
                     feat = QgsFeature()
@@ -2060,7 +2115,10 @@ class LayerManager:
                     # Dynamic height: highest elevation (subject to VE) + 1000 m (not exaggerated)
                     top_at_max = geometry.calculate_profile_point(distance_nm, max_elevation_ft)
                     top = QgsPointXY(bottom.x(), top_at_max.y() + vertical_extra_m)
-                    self._dbg(f"Created key vertical for {point_name} at {distance_nm}NM: baseline_y={bottom.y():.2f}, top_y={top.y():.2f}")
+                    self._dbg(
+                        f"Created key vertical for {point_name} at {distance_nm}NM:"
+                        f" baseline_y={bottom.y():.2f}, top_y={top.y():.2f}"
+                    )
                     if layer_line:
                         feat_v = QgsFeature()
                         feat_v.setFields(layer_line.fields())
@@ -2072,13 +2130,13 @@ class LayerManager:
                         line_features.append(feat_v)
                 except Exception as e:
                     log(f"could not create key vertical for {point_name}: {e}", "WARNING")
-                
+
                 log(f"Prepared point '{point_name}' at {distance_nm} NM / {elevation_ft} ft")
-                
+
             except (ValueError, TypeError) as e:
                 log(f"Could not process point {point_data.get('point_name', 'unknown')}: {e}", "WARNING")
                 continue
-        
+
         # 5. Prepare distance markers (tick line segments)
         self._dbg("PHASE: DISTANCE MARKERS start")
         if profile_points:
@@ -2116,7 +2174,7 @@ class LayerManager:
                     line_features.append(feat)
                 except Exception as e:
                     log(f"Could not prepare baseline: {e}", "WARNING")
-            
+
             # Merge distance markers into line layer per #40
             if layer_line:
                 for marker in markers:
@@ -2138,7 +2196,8 @@ class LayerManager:
             if layer_label:
                 try:
                     # Axis labels should be 50 m BELOW the end of the tick marks (Issue #15)
-                    # We compute the label y from the same tick visual height used above, plus 50 m visual, then divide by VE
+                    # We compute the label y from the same tick visual height used above,
+                    # plus 50 m visual, then divide by VE
                     label_extra_offset_visual_m = 50.0
                     label_y_offset_m = -((tick_visual_height_m + label_extra_offset_visual_m) / ve)
                     # Convert real meters to feet because calculate_profile_point expects feet
@@ -2155,16 +2214,20 @@ class LayerManager:
                         feat.setAttribute("font_size", 9)
                         self._assign_feature_id(feat, self.LAYER_CARTO_LABEL, next_id)
                         label_features.append(feat)
-                    log(f"Prepared {int(max_distance_nm)+1} axis labels at {label_y_offset_m:.2f} m below baseline (real), i.e., {label_y_offset_ft:.2f} ft")
+                    log(
+                        f"Prepared {int(max_distance_nm)+1} axis labels at"
+                        f" {label_y_offset_m:.2f} m below baseline (real),"
+                        f" i.e., {label_y_offset_ft:.2f} ft"
+                    )
                 except Exception as e:
                     log(f"Could not create axis labels: {e}", "WARNING")
             # Grid layer removed (Issue #14): skipping creation of full-height vertical grid lines
         self._dbg("PHASE: DISTANCE MARKERS end")
-        
+
     # 6. Prepare MOCA polygons
-        log(f"=== CREATING MOCA HATCH AREAS ===")
+        log("=== CREATING MOCA HATCH AREAS ===")
         self._dbg("PHASE: MOCA/OCA start")
-        # Client requirement (#36): OCA removal â†’ ignore any OCA config; render MOCA only
+        # Client requirement (#36): OCA removal â†' ignore any OCA config; render MOCA only
         # Force OCA path off and prefer MOCA; keep variable defined to avoid NameError
         has_oca = False
         has_explicit_moca = False
@@ -2249,7 +2312,10 @@ class LayerManager:
                     point1 = profile_points[i]
                     point2 = profile_points[i + 1]
                     moca_ft = point1.get('moca_ft', '')
-                    log(f"Segment {i}: {point1.get('point_name','')} â†’ {point2.get('point_name','')}, MOCA={moca_ft}")
+                    log(
+                        f"Segment {i}: {point1.get('point_name', '')}"
+                        f" → {point2.get('point_name', '')}, MOCA={moca_ft}"
+                    )
                     if moca_ft and moca_ft.strip():
                         try:
                             moca_value = float(moca_ft)
@@ -2264,26 +2330,35 @@ class LayerManager:
                                 geom = QgsGeometry.fromPolygonXY([moca_polygon])
                                 feat.setGeometry(geom)
                                 feat.setAttribute("moca", float(moca_value))
-                                feat.setAttribute("segment_name", f"{point1.get('point_name', '')} - {point2.get('point_name', '')}")
+                                feat.setAttribute(
+                                    "segment_name",
+                                    f"{point1.get('point_name', '')} - {point2.get('point_name', '')}"
+                                )
                                 feat.setAttribute("clearance", 0.0)
                                 self._assign_feature_id(feat, self.LAYER_MOCA, next_id)
                                 moca_features.append(feat)
-                                log(f"  âœ… MOCA feature added to batch")
+                                log("  âœ… MOCA feature added to batch")
                         except (ValueError, TypeError) as e:
                             log(f"âŒ Could not create MOCA for segment: {e}")
                             continue
-        
+
         # Removed duplicate per-segment MOCA generation to avoid conflicts.
 
         # (Note) explicit MOCA handled above only when no OCA is present.
         self._dbg("PHASE: MOCA/OCA end")
-        
+
         # BATCH ADD: Add all features in bulk (single edit cycle per layer)
-        log(f"=== BATCH ADDING FEATURES ===")
+        log("=== BATCH ADDING FEATURES ===")
         self._dbg("PHASE: BATCH ADD start")
-        log(f"Features to add - Points: {len(point_features)}, Labels: {len(label_features)}, Lines: {len(line_features)}, MOCA: {len(moca_features)}")
-        print(f"[qAeroChart][POP] BATCH: points={len(point_features)}, labels={len(label_features)}, lines={len(line_features)}, moca={len(moca_features)}")
-        
+        log(
+            f"Features to add - Points: {len(point_features)}, Labels: {len(label_features)},"
+            f" Lines: {len(line_features)}, MOCA: {len(moca_features)}"
+        )
+        print(
+            f"[qAeroChart][POP] BATCH: points={len(point_features)}, labels={len(label_features)},"
+            f" lines={len(line_features)}, moca={len(moca_features)}"
+        )
+
         if point_features and layer_point:
             layer_point.startEditing()
             success = layer_point.addFeatures(point_features)
@@ -2295,8 +2370,11 @@ class LayerManager:
                 print(f"[qAeroChart][POP] POINTS COMMIT FAILED: {layer_point.commitErrors()}")
             log(f"âœ… Added {len(point_features)} point features (addFeatures={success}, commit={commit_success})")
             self._dbg(f"Point layer now has {layer_point.featureCount()} features")
-            print(f"[qAeroChart][POP] Points: add={success}, commit={commit_success}, count={layer_point.featureCount()}")
-        
+            print(
+                f"[qAeroChart][POP] Points: add={success}, commit={commit_success},"
+                f" count={layer_point.featureCount()}"
+            )
+
         if label_features and layer_label:
             layer_label.startEditing()
             success = layer_label.addFeatures(label_features)
@@ -2308,17 +2386,23 @@ class LayerManager:
                 print(f"[qAeroChart][POP] LABELS COMMIT FAILED: {layer_label.commitErrors()}")
             log(f"âœ… Added {len(label_features)} label features (addFeatures={success}, commit={commit_success})")
             self._dbg(f"Label layer now has {layer_label.featureCount()} features")
-            print(f"[qAeroChart][POP] Labels: add={success}, commit={commit_success}, count={layer_label.featureCount()}")
+            print(
+                f"[qAeroChart][POP] Labels: add={success}, commit={commit_success},"
+                f" count={layer_label.featureCount()}"
+            )
 
         # Distance markers and key verticals are merged into profile_line per #40; commit line features
-        log(f"=== ADDING LINE FEATURES ===")
+        log("=== ADDING LINE FEATURES ===")
         log(f"Layer valid: {layer_line.isValid()}")
         log(f"Layer CRS: {layer_line.crs().authid()}")
         log(f"Features in batch: {len(line_features)}")
 
         for idx, feat in enumerate(line_features):
             geom = feat.geometry()
-            log(f"  Line {idx}: Valid={geom.isGeosValid()}, Type={geom.type()}, Empty={geom.isEmpty()}, WKT={geom.asWkt()[:100]}...")
+            log(
+                f"  Line {idx}: Valid={geom.isGeosValid()}, Type={geom.type()},"
+                f" Empty={geom.isEmpty()}, WKT={geom.asWkt()[:100]}..."
+            )
 
         layer_line.startEditing()
         success = layer_line.addFeatures(line_features)
@@ -2336,9 +2420,16 @@ class LayerManager:
         extent = layer_line.extent()
         feature_count = layer_line.featureCount()
         log(f"âœ… Added {len(line_features)} line features (addFeatures={success}, commit={commit_success})")
-        log(f"Line layer extent: {extent.xMinimum():.2f}, {extent.yMinimum():.2f} to {extent.xMaximum():.2f}, {extent.yMaximum():.2f}")
+        log(
+            f"Line layer extent: {extent.xMinimum():.2f}, {extent.yMinimum():.2f}"
+            f" to {extent.xMaximum():.2f}, {extent.yMaximum():.2f}"
+        )
         log(f"Line layer feature count: {feature_count}")
-        print(f"[qAeroChart][POP] Lines extent: {extent.xMinimum():.2f},{extent.yMinimum():.2f} -> {extent.xMaximum():.2f},{extent.yMaximum():.2f}")
+        print(
+            f"[qAeroChart][POP] Lines extent:"
+            f" {extent.xMinimum():.2f},{extent.yMinimum():.2f}"
+            f" -> {extent.xMaximum():.2f},{extent.yMaximum():.2f}"
+        )
         print(f"[qAeroChart][POP] Lines: add={success}, commit={commit_success}, count={feature_count}")
 
         # Fallback: if for any reason no line features present, attempt to rebuild once
@@ -2373,10 +2464,11 @@ class LayerManager:
                     try:
                         if self.iface:
                             from ..utils.qt_compat import MsgLevel
-                            push_message(self.iface, "qAeroChart",
+                            push_message(
+                                self.iface, "qAeroChart",
                                 "Profile line rebuilt due to empty layer after first pass.",
                                 level=MsgLevel.Info,
-                                duration=4
+                                duration=4,
                             )
                     except Exception:
                         pass
@@ -2385,19 +2477,20 @@ class LayerManager:
 
         # Distance markers are merged into profile_line per #40 (no separate dist layer)
 
-
-
         # Key verticals merged into profile_line per #40
 
         if moca_features and layer_moca:
-            log(f"=== ADDING MOCA FEATURES ===")
+            log("=== ADDING MOCA FEATURES ===")
             log(f"Layer valid: {layer_moca.isValid()}")
             log(f"Layer CRS: {layer_moca.crs().authid()}")
             log(f"Features in batch: {len(moca_features)}")
 
             for idx, feat in enumerate(moca_features):
                 geom = feat.geometry()
-                log(f"  MOCA {idx}: Valid={geom.isGeosValid()}, Type={geom.type()}, Area={geom.area():.2f}, Empty={geom.isEmpty()}")
+                log(
+                    f"  MOCA {idx}: Valid={geom.isGeosValid()}, Type={geom.type()},"
+                    f" Area={geom.area():.2f}, Empty={geom.isEmpty()}"
+                )
 
             layer_moca.startEditing()
             success = layer_moca.addFeatures(moca_features)
@@ -2415,9 +2508,16 @@ class LayerManager:
             extent = layer_moca.extent()
             feature_count = layer_moca.featureCount()
             log(f"âœ… Added {len(moca_features)} MOCA features (addFeatures={success}, commit={commit_success})")
-            log(f"MOCA layer extent: {extent.xMinimum():.2f}, {extent.yMinimum():.2f} to {extent.xMaximum():.2f}, {extent.yMaximum():.2f}")
+            log(
+                f"MOCA layer extent: {extent.xMinimum():.2f}, {extent.yMinimum():.2f}"
+                f" to {extent.xMaximum():.2f}, {extent.yMaximum():.2f}"
+            )
             log(f"MOCA layer feature count: {feature_count}")
-            print(f"[qAeroChart][POP] MOCA extent: {extent.xMinimum():.2f},{extent.yMinimum():.2f} -> {extent.xMaximum():.2f},{extent.yMaximum():.2f}")
+            print(
+                f"[qAeroChart][POP] MOCA extent:"
+                f" {extent.xMinimum():.2f},{extent.yMinimum():.2f}"
+                f" -> {extent.xMaximum():.2f},{extent.yMaximum():.2f}"
+            )
             print(f"[qAeroChart][POP] MOCA: add={success}, commit={commit_success}, count={feature_count}")
 
         # Baseline is added into profile_line (Issue #24); no separate baseline layer
@@ -2427,7 +2527,7 @@ class LayerManager:
         # Force refresh of canvas
         if self.iface:
             self.iface.mapCanvas().refresh()
-            log(f"âœ… Canvas refreshed")
+            log("âœ… Canvas refreshed")
             print("[qAeroChart][POP] Canvas refreshed")
 
         # Auto-zoom to profile extent
@@ -2435,13 +2535,21 @@ class LayerManager:
             extent = layer_line.extent()
             # Add 20% buffer around the profile
             extent.scale(1.2)
-            print(f"[qAeroChart][POP] Auto-zoom extent: {extent.xMinimum():.2f},{extent.yMinimum():.2f} -> {extent.xMaximum():.2f},{extent.yMaximum():.2f}")
+            print(
+                f"[qAeroChart][POP] Auto-zoom extent:"
+                f" {extent.xMinimum():.2f},{extent.yMinimum():.2f}"
+                f" -> {extent.xMaximum():.2f},{extent.yMaximum():.2f}"
+            )
             self.iface.mapCanvas().setExtent(extent)
             self.iface.mapCanvas().refresh()
-            log(f"âœ… Auto-zoomed to profile extent")
-            print(f"[qAeroChart][POP] Auto-zoomed to extent")
+            log("âœ… Auto-zoomed to profile extent")
+            print("[qAeroChart][POP] Auto-zoomed to extent")
         else:
-            print(f"[qAeroChart][POP] WARNING: No auto-zoom! layer_line={layer_line!r}, featureCount={layer_line.featureCount() if layer_line else 'N/A'}")
+            print(
+                f"[qAeroChart][POP] WARNING: No auto-zoom!"
+                f" layer_line={layer_line!r},"
+                f" featureCount={layer_line.featureCount() if layer_line else 'N/A'}"
+            )
 
             # View scale enforcement removed (Issue #9)
 
@@ -2453,7 +2561,11 @@ class LayerManager:
         print("[qAeroChart][POP] === POPULATION COMPLETE ===")
         for _lk, _lv in self.layers.items():
             try:
-                print(f"[qAeroChart][POP]   {_lk}: valid={_lv.isValid()}, features={_lv.featureCount()}, renderer={type(_lv.renderer()).__name__ if _lv.renderer() else 'None'}")
+                print(
+                    f"[qAeroChart][POP]   {_lk}: valid={_lv.isValid()},"
+                    f" features={_lv.featureCount()},"
+                    f" renderer={type(_lv.renderer()).__name__ if _lv.renderer() else 'None'}"
+                )
             except Exception:
                 print(f"[qAeroChart][POP]   {_lk}: <error reading layer>")
 

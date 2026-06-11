@@ -1,25 +1,56 @@
-# Ignore archive files
+# ── Archives ──────────────────────────────────────────────────────────────────
 *.[Zz][Ii][Pp]
 *.[Rr][Aa][Rr]
 
-# Python bytecode
+# ── Python bytecode ───────────────────────────────────────────────────────────
 __pycache__/
 *.py[cod]
+*.pyo
 
-# Ignore entire docs directory (all files, all types) per new policy
-/docs/
+# ── Virtual environments ──────────────────────────────────────────────────────
+.venv/
+venv/
+env/
+.env
 
-#skill agents
+# ── Build / distribution ──────────────────────────────────────────────────────
+build/
+dist/
+*.egg-info/
+*.egg
+
+# ── Test / coverage ───────────────────────────────────────────────────────────
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# ── Cache ─────────────────────────────────────────────────────────────────────
+.cache/
+
+# ── OS files ──────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── Editor / IDE ──────────────────────────────────────────────────────────────
+*.swp
+*.swo
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+
+# ── Logs ──────────────────────────────────────────────────────────────────────
+*.log
+
+# ── AI / agent config (not for contributors) ──────────────────────────────────
 .agents/
 .agent/
 .claude/
+.augment/
 CLAUDE.md
 skills-lock.json
-CLAUDE.md
 
-# cache
-.cache/
-.pytest_cache/
-__pycache__/
-
-
+# ── Project docs (generated; tracked separately) ──────────────────────────────
+/docs/

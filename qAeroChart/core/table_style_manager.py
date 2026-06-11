@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 """
 TableStyleManager — persists named table style configs in QgsProject settings.
 

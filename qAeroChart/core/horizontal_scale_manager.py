@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 """
 HorizontalScaleManager — persists horizontal-scale configurations in the QGIS
 project settings (QgsProject.writeEntry / readEntry).
