@@ -22,7 +22,8 @@
 """
 from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication
 from qgis.PyQt.QtGui import QIcon
-from qgis.PyQt.QtWidgets import QAction, QMenu, QToolBar
+from qgis.PyQt.QtWidgets import QAction, QMenu, QToolBar, QFileDialog
+from qgis.core import QgsProject
 
 # Initialize Qt resources from file resources.py
 # from .resources import *
@@ -33,8 +34,10 @@ from .vertical_scale_dialog import VerticalScaleDockWidget
 from .horizontal_scale_dialog import HorizontalScaleDockWidget
 from .holding_dock import HoldingDockWidget
 from .msa_dock import MSADockWidget
+from .core.inventory_exporter import HAS_OPENPYXL, write_csv, write_xlsx
+from .core.layer_inventory import build_inventory
 from .utils.logger import log
-from .utils.qt_compat import Qt
+from .utils.qt_compat import MsgLevel, Qt
 import os.path
 
 
@@ -121,6 +124,9 @@ class QAeroChart:
         self.holding_action = None
         self._msa_dock = None
         self.msa_action = None
+        # Layer path export actions (Issue #110) — menu only, no toolbar icon
+        self.export_paths_csv_action = None
+        self.export_paths_xlsx_action = None
 
     # noinspection PyMethodMayBeStatic
     def tr(self, message):
@@ -283,6 +289,29 @@ class QAeroChart:
         self.msa_action.triggered.connect(self.open_msa_dock)
         self.tools_toolbar.addAction(self.msa_action)
 
+        # Layer path export actions (Issue #110) — menu only, per issue request
+        self.export_paths_csv_action = QAction(
+            self.tr('Export Layer Paths (CSV)'),
+            self.iface.mainWindow(),
+        )
+        self.export_paths_csv_action.setObjectName('qAeroChartExportPathsCsvAction')
+        self.export_paths_csv_action.setStatusTip(
+            self.tr('Export layer names, types and source paths to a CSV file'))
+        self.export_paths_csv_action.triggered.connect(
+            lambda: self._export_layer_paths('csv'))
+
+        self.export_paths_xlsx_action = QAction(
+            self.tr('Export Layer Paths (XLSX)'),
+            self.iface.mainWindow(),
+        )
+        self.export_paths_xlsx_action.setObjectName('qAeroChartExportPathsXlsxAction')
+        self.export_paths_xlsx_action.setStatusTip(
+            self.tr('Export layer names, types and source paths to a formatted Excel file'))
+        if not HAS_OPENPYXL:
+            self.export_paths_xlsx_action.setEnabled(False)
+            self.export_paths_xlsx_action.setStatusTip(
+                self.tr('Requires the openpyxl package (pip install openpyxl)'))
+
         # Create top-level menu "qAeroChart" and insert it to the right of qPANSOPY if present (issue #3)
         try:
             menu_bar = self.iface.mainWindow().menuBar()
@@ -294,6 +323,8 @@ class QAeroChart:
             self.top_menu.addAction(self.horizontal_scale_action)
             self.top_menu.addAction(self.holding_action)
             self.top_menu.addAction(self.msa_action)
+            self.top_menu.addAction(self.export_paths_csv_action)
+            self.top_menu.addAction(self.export_paths_xlsx_action)
 
             # Try to position it right after qPANSOPY
             inserted = False
@@ -560,6 +591,10 @@ class QAeroChart:
         if self.msa_action:
             self.msa_action = None
 
+        # Clean up layer path export actions (Issue #110)
+        self.export_paths_csv_action = None
+        self.export_paths_xlsx_action = None
+
     # --------------------------------------------------------------------------
 
     def _active_layout_name(self):
@@ -578,6 +613,59 @@ class QAeroChart:
         except Exception:  # nosec B110 - older/newer API probe; falls through to next attempt
             pass
         return None
+
+    def _export_layer_paths(self, extension: str) -> None:
+        """Export the layer inventory to CSV or XLSX (issue #110).
+
+        *extension* is ``'csv'`` or ``'xlsx'``; XLSX requires openpyxl
+        (the action is disabled when it is missing).
+        """
+        try:
+            project = QgsProject.instance()
+            rows = build_inventory(project)
+            if not rows:
+                self.iface.messageBar().pushMessage(
+                    "qAeroChart",
+                    "No exportable layers in this project.",
+                    level=MsgLevel.Info,
+                    duration=4,
+                )
+                return
+
+            project_file = project.fileName()
+            project_name = (
+                os.path.splitext(os.path.basename(project_file))[0]
+                if project_file else "Untitled_Project"
+            )
+            default_path = os.path.join(
+                os.path.expanduser("~"), f"{project_name}_layer_paths.{extension}"
+            )
+            label = 'Excel file (*.xlsx)' if extension == 'xlsx' else 'CSV file (*.csv)'
+            file_path, _ = QFileDialog.getSaveFileName(
+                self.iface.mainWindow(),
+                f"Export Layer Paths ({extension.upper()})",
+                default_path,
+                label,
+            )
+            if not file_path:
+                return
+
+            writer = write_xlsx if extension == 'xlsx' else write_csv
+            saved = writer(rows, file_path)
+            self.iface.messageBar().pushMessage(
+                "qAeroChart",
+                f"Layer paths exported to {saved}",
+                level=MsgLevel.Success,
+                duration=5,
+            )
+        except Exception as exc:
+            log(f"Layer path export failed: {exc}", "ERROR")
+            try:
+                self.iface.messageBar().pushCritical(
+                    "qAeroChart", f"Layer path export failed: {exc}",
+                )
+            except Exception:  # nosec B110 - message bar unavailable; already logged
+                pass
 
     def _safe_insert(self, insert_fn, dlg) -> None:
         """Call *insert_fn* and catch errors so a failed insert never crashes the plugin."""
