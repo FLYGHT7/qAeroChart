@@ -33,6 +33,7 @@ from .vertical_scale_dialog import VerticalScaleDockWidget
 from .horizontal_scale_dialog import HorizontalScaleDockWidget
 from .holding_dock import HoldingDockWidget
 from .msa_dock import MSADockWidget
+from .north_arrow_dock import NorthArrowDockWidget
 from .utils.logger import log
 from .utils.qt_compat import Qt
 import os.path
@@ -121,6 +122,9 @@ class QAeroChart:
         self.holding_action = None
         self._msa_dock = None
         self.msa_action = None
+        # North Arrow dock (Issue #108)
+        self._north_arrow_dock = None
+        self.north_arrow_action = None
 
     # noinspection PyMethodMayBeStatic
     def tr(self, message):
@@ -283,6 +287,21 @@ class QAeroChart:
         self.msa_action.triggered.connect(self.open_msa_dock)
         self.tools_toolbar.addAction(self.msa_action)
 
+        # North Arrow action (Issue #108)
+        na_icon_path = os.path.join(self.plugin_dir, 'icons', 'icon_north_arrow.svg')
+        if not os.path.exists(na_icon_path):
+            na_icon_path = icon_path
+        self.north_arrow_action = QAction(
+            QIcon(na_icon_path),
+            self.tr('North Arrow'),
+            self.iface.mainWindow(),
+        )
+        self.north_arrow_action.setObjectName('qAeroChartNorthArrowAction')
+        self.north_arrow_action.setStatusTip(
+            self.tr('Place a north arrow with magnetic declination on the map'))
+        self.north_arrow_action.triggered.connect(self.open_north_arrow_dock)
+        self.tools_toolbar.addAction(self.north_arrow_action)
+
         # Create top-level menu "qAeroChart" and insert it to the right of qPANSOPY if present (issue #3)
         try:
             menu_bar = self.iface.mainWindow().menuBar()
@@ -294,6 +313,7 @@ class QAeroChart:
             self.top_menu.addAction(self.horizontal_scale_action)
             self.top_menu.addAction(self.holding_action)
             self.top_menu.addAction(self.msa_action)
+            self.top_menu.addAction(self.north_arrow_action)
 
             # Try to position it right after qPANSOPY
             inserted = False
@@ -559,6 +579,22 @@ class QAeroChart:
             self._msa_dock = None
         if self.msa_action:
             self.msa_action = None
+
+        # Clean up North Arrow dock (Issue #108)
+        if self._north_arrow_dock:
+            try:
+                if self._north_arrow_dock._map_tool is not None:
+                    self.iface.mapCanvas().unsetMapTool(self._north_arrow_dock._map_tool)
+            except Exception:  # nosec B110 - best-effort teardown step; other cleanup must still proceed
+                pass
+            try:
+                self.iface.removeDockWidget(self._north_arrow_dock)
+                self._north_arrow_dock.deleteLater()
+            except Exception:  # nosec B110 - best-effort teardown step; other cleanup must still proceed
+                pass
+            self._north_arrow_dock = None
+        if self.north_arrow_action:
+            self.north_arrow_action = None
 
     # --------------------------------------------------------------------------
 
@@ -881,6 +917,24 @@ class QAeroChart:
                 self._msa_dock.raise_()
         except Exception as exc:
             log(f"Could not toggle MSA dock: {exc}", "ERROR")
+
+    def open_north_arrow_dock(self) -> None:
+        """Toggle the North Arrow dock (issue #108)."""
+        try:
+            if self._north_arrow_dock is None:
+                self._north_arrow_dock = NorthArrowDockWidget(self.iface.mainWindow())
+                self.iface.addDockWidget(Qt.RightDockWidgetArea, self._north_arrow_dock)
+                self._tabify_with_existing_qaerochart_dock(self._north_arrow_dock)
+                self._north_arrow_dock.show()
+                return
+
+            if self._north_arrow_dock.isVisible():
+                self._north_arrow_dock.hide()
+            else:
+                self._north_arrow_dock.show()
+                self._north_arrow_dock.raise_()
+        except Exception as exc:
+            log(f"Could not toggle North Arrow dock: {exc}", "ERROR")
 
     def open_horizontal_scale_dock(self) -> None:
         """Toggle the Horizontal Scale dock (issue #69)."""
