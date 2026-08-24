@@ -22,7 +22,8 @@
 """
 from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication
 from qgis.PyQt.QtGui import QIcon
-from qgis.PyQt.QtWidgets import QAction, QMenu, QToolBar
+from qgis.PyQt.QtWidgets import QAction, QMenu, QToolBar, QFileDialog
+from qgis.core import QgsProject
 
 # Initialize Qt resources from file resources.py
 # from .resources import *
@@ -33,11 +34,11 @@ from .vertical_scale_dialog import VerticalScaleDockWidget
 from .horizontal_scale_dialog import HorizontalScaleDockWidget
 from .holding_dock import HoldingDockWidget
 from .msa_dock import MSADockWidget
+from .north_arrow_dock import NorthArrowDockWidget
 from .core.aoi_extractor import extract_aoi
 from .ui.aoi_extraction_dialog import AoiExtractionDialog
 from .utils.logger import log
 from .utils.qt_compat import MsgLevel, Qt
-from qgis.core import QgsProject
 import os.path
 
 
@@ -124,6 +125,9 @@ class QAeroChart:
         self.holding_action = None
         self._msa_dock = None
         self.msa_action = None
+        # North Arrow dock (Issue #108)
+        self._north_arrow_dock = None
+        self.north_arrow_action = None
         # AOI extraction action (Issue #111)
         self.aoi_action = None
 
@@ -288,6 +292,21 @@ class QAeroChart:
         self.msa_action.triggered.connect(self.open_msa_dock)
         self.tools_toolbar.addAction(self.msa_action)
 
+        # North Arrow action (Issue #108)
+        na_icon_path = os.path.join(self.plugin_dir, 'icons', 'icon_north_arrow.svg')
+        if not os.path.exists(na_icon_path):
+            na_icon_path = icon_path
+        self.north_arrow_action = QAction(
+            QIcon(na_icon_path),
+            self.tr('North Arrow'),
+            self.iface.mainWindow(),
+        )
+        self.north_arrow_action.setObjectName('qAeroChartNorthArrowAction')
+        self.north_arrow_action.setStatusTip(
+            self.tr('Place a north arrow with magnetic declination on the map'))
+        self.north_arrow_action.triggered.connect(self.open_north_arrow_dock)
+        self.tools_toolbar.addAction(self.north_arrow_action)
+
         # Extract AOI Features action (Issue #111)
         aoi_icon_path = os.path.join(self.plugin_dir, 'icons', 'icon_aoi_extract.svg')
         if not os.path.exists(aoi_icon_path):
@@ -314,6 +333,7 @@ class QAeroChart:
             self.top_menu.addAction(self.horizontal_scale_action)
             self.top_menu.addAction(self.holding_action)
             self.top_menu.addAction(self.msa_action)
+            self.top_menu.addAction(self.north_arrow_action)
             self.top_menu.addAction(self.aoi_action)
 
             # Try to position it right after qPANSOPY
@@ -581,6 +601,22 @@ class QAeroChart:
         if self.msa_action:
             self.msa_action = None
 
+        # Clean up North Arrow dock (Issue #108)
+        if self._north_arrow_dock:
+            try:
+                if self._north_arrow_dock._map_tool is not None:
+                    self.iface.mapCanvas().unsetMapTool(self._north_arrow_dock._map_tool)
+            except Exception:  # nosec B110 - best-effort teardown step; other cleanup must still proceed
+                pass
+            try:
+                self.iface.removeDockWidget(self._north_arrow_dock)
+                self._north_arrow_dock.deleteLater()
+            except Exception:  # nosec B110 - best-effort teardown step; other cleanup must still proceed
+                pass
+            self._north_arrow_dock = None
+        if self.north_arrow_action:
+            self.north_arrow_action = None
+
         # Clean up AOI extraction action (Issue #111)
         if self.aoi_action:
             self.aoi_action = None
@@ -652,6 +688,59 @@ class QAeroChart:
         except Exception:  # nosec B110 - older/newer API probe; falls through to next attempt
             pass
         return None
+
+    def _export_layer_paths(self, extension: str) -> None:
+        """Export the layer inventory to CSV or XLSX (issue #110).
+
+        *extension* is ``'csv'`` or ``'xlsx'``; XLSX requires openpyxl
+        (the action is disabled when it is missing).
+        """
+        try:
+            project = QgsProject.instance()
+            rows = build_inventory(project)
+            if not rows:
+                self.iface.messageBar().pushMessage(
+                    "qAeroChart",
+                    "No exportable layers in this project.",
+                    level=MsgLevel.Info,
+                    duration=4,
+                )
+                return
+
+            project_file = project.fileName()
+            project_name = (
+                os.path.splitext(os.path.basename(project_file))[0]
+                if project_file else "Untitled_Project"
+            )
+            default_path = os.path.join(
+                os.path.expanduser("~"), f"{project_name}_layer_paths.{extension}"
+            )
+            label = 'Excel file (*.xlsx)' if extension == 'xlsx' else 'CSV file (*.csv)'
+            file_path, _ = QFileDialog.getSaveFileName(
+                self.iface.mainWindow(),
+                f"Export Layer Paths ({extension.upper()})",
+                default_path,
+                label,
+            )
+            if not file_path:
+                return
+
+            writer = write_xlsx if extension == 'xlsx' else write_csv
+            saved = writer(rows, file_path)
+            self.iface.messageBar().pushMessage(
+                "qAeroChart",
+                f"Layer paths exported to {saved}",
+                level=MsgLevel.Success,
+                duration=5,
+            )
+        except Exception as exc:
+            log(f"Layer path export failed: {exc}", "ERROR")
+            try:
+                self.iface.messageBar().pushCritical(
+                    "qAeroChart", f"Layer path export failed: {exc}",
+                )
+            except Exception:  # nosec B110 - message bar unavailable; already logged
+                pass
 
     def _safe_insert(self, insert_fn, dlg) -> None:
         """Call *insert_fn* and catch errors so a failed insert never crashes the plugin."""
@@ -955,6 +1044,24 @@ class QAeroChart:
                 self._msa_dock.raise_()
         except Exception as exc:
             log(f"Could not toggle MSA dock: {exc}", "ERROR")
+
+    def open_north_arrow_dock(self) -> None:
+        """Toggle the North Arrow dock (issue #108)."""
+        try:
+            if self._north_arrow_dock is None:
+                self._north_arrow_dock = NorthArrowDockWidget(self.iface.mainWindow())
+                self.iface.addDockWidget(Qt.RightDockWidgetArea, self._north_arrow_dock)
+                self._tabify_with_existing_qaerochart_dock(self._north_arrow_dock)
+                self._north_arrow_dock.show()
+                return
+
+            if self._north_arrow_dock.isVisible():
+                self._north_arrow_dock.hide()
+            else:
+                self._north_arrow_dock.show()
+                self._north_arrow_dock.raise_()
+        except Exception as exc:
+            log(f"Could not toggle North Arrow dock: {exc}", "ERROR")
 
     def open_horizontal_scale_dock(self) -> None:
         """Toggle the Horizontal Scale dock (issue #69)."""
