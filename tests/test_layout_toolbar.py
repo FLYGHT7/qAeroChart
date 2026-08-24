@@ -25,6 +25,8 @@ for _mod in (
     'qAeroChart.core.layout_manager',
     'qAeroChart.tools',
     'qAeroChart.tools.profile_point_tool',
+    'qAeroChart.tools.north_arrow_tool',
+    'qAeroChart.north_arrow_dock',
 ):
     sys.modules.setdefault(_mod, MagicMock())
 
