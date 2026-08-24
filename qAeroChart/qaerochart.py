@@ -22,7 +22,8 @@
 """
 from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication
 from qgis.PyQt.QtGui import QIcon
-from qgis.PyQt.QtWidgets import QAction, QMenu, QToolBar
+from qgis.PyQt.QtWidgets import QAction, QMenu, QToolBar, QFileDialog
+from qgis.core import QgsProject
 
 # Initialize Qt resources from file resources.py
 # from .resources import *
@@ -35,7 +36,7 @@ from .holding_dock import HoldingDockWidget
 from .msa_dock import MSADockWidget
 from .north_arrow_dock import NorthArrowDockWidget
 from .utils.logger import log
-from .utils.qt_compat import Qt
+from .utils.qt_compat import MsgLevel, Qt
 import os.path
 
 
@@ -614,6 +615,59 @@ class QAeroChart:
         except Exception:  # nosec B110 - older/newer API probe; falls through to next attempt
             pass
         return None
+
+    def _export_layer_paths(self, extension: str) -> None:
+        """Export the layer inventory to CSV or XLSX (issue #110).
+
+        *extension* is ``'csv'`` or ``'xlsx'``; XLSX requires openpyxl
+        (the action is disabled when it is missing).
+        """
+        try:
+            project = QgsProject.instance()
+            rows = build_inventory(project)
+            if not rows:
+                self.iface.messageBar().pushMessage(
+                    "qAeroChart",
+                    "No exportable layers in this project.",
+                    level=MsgLevel.Info,
+                    duration=4,
+                )
+                return
+
+            project_file = project.fileName()
+            project_name = (
+                os.path.splitext(os.path.basename(project_file))[0]
+                if project_file else "Untitled_Project"
+            )
+            default_path = os.path.join(
+                os.path.expanduser("~"), f"{project_name}_layer_paths.{extension}"
+            )
+            label = 'Excel file (*.xlsx)' if extension == 'xlsx' else 'CSV file (*.csv)'
+            file_path, _ = QFileDialog.getSaveFileName(
+                self.iface.mainWindow(),
+                f"Export Layer Paths ({extension.upper()})",
+                default_path,
+                label,
+            )
+            if not file_path:
+                return
+
+            writer = write_xlsx if extension == 'xlsx' else write_csv
+            saved = writer(rows, file_path)
+            self.iface.messageBar().pushMessage(
+                "qAeroChart",
+                f"Layer paths exported to {saved}",
+                level=MsgLevel.Success,
+                duration=5,
+            )
+        except Exception as exc:
+            log(f"Layer path export failed: {exc}", "ERROR")
+            try:
+                self.iface.messageBar().pushCritical(
+                    "qAeroChart", f"Layer path export failed: {exc}",
+                )
+            except Exception:  # nosec B110 - message bar unavailable; already logged
+                pass
 
     def _safe_insert(self, insert_fn, dlg) -> None:
         """Call *insert_fn* and catch errors so a failed insert never crashes the plugin."""
