@@ -37,6 +37,8 @@ changelog=
     - Layout tables now have add button to expand/contract placement parameters
     - MSA generator tool included 
     - GS/Rate of Descent Table builder allow row reordering
+	- Implement North Arrow feature with UI and geometry calculations
+    - Layer Path Export to CSV or XLSX#135
 	Version 0.0.1:
     - Approach profile creation (MAPt, FAF, IF points)
     - Automatically organized memory layers in groups
