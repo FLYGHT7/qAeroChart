@@ -90,6 +90,13 @@ class GsRodTableDialog(QtWidgets.QDialog):
         )
         self.line_gs_values.setPlaceholderText("Comma-separated integers, e.g. 70, 90, 100, 120, 140, 160")
 
+        self.combo_round_step = QtWidgets.QComboBox()
+        self.combo_round_step.addItems(["None", "5", "10"])
+
+        self.combo_round_mode = QtWidgets.QComboBox()
+        self.combo_round_mode.addItems(["Nearest", "Up"])
+        self.combo_round_mode.setEnabled(False)
+
         params_grid.addWidget(QtWidgets.QLabel("Distance (NM)"), 0, 0)
         params_grid.addWidget(self.spin_distance, 0, 1)
         params_grid.addWidget(QtWidgets.QLabel("Gradient (%)"), 0, 2)
@@ -113,6 +120,11 @@ class GsRodTableDialog(QtWidgets.QDialog):
 
         params_grid.addWidget(QtWidgets.QLabel("GS values"), 5, 0)
         params_grid.addWidget(self.line_gs_values, 5, 1, 1, 3)
+
+        params_grid.addWidget(QtWidgets.QLabel("Round ROD to"), 6, 0)
+        params_grid.addWidget(self.combo_round_step, 6, 1)
+        params_grid.addWidget(QtWidgets.QLabel("Round mode"), 6, 2)
+        params_grid.addWidget(self.combo_round_mode, 6, 3)
 
         root.addWidget(params_grp)
 
@@ -263,10 +275,16 @@ class GsRodTableDialog(QtWidgets.QDialog):
             self.line_gs_values,
         ):
             widget.textChanged.connect(self._refresh_preview)
+        self.combo_round_step.currentTextChanged.connect(self._on_round_step_changed)
+        self.combo_round_mode.currentTextChanged.connect(self._refresh_preview)
 
     # ------------------------------------------------------------------
     # Preview logic
     # ------------------------------------------------------------------
+
+    def _on_round_step_changed(self, text: str) -> None:
+        self.combo_round_mode.setEnabled(text != "None")
+        self._refresh_preview()
 
     def _parse_gs_values(self) -> tuple[int, ...]:
         raw = self.line_gs_values.text()
@@ -276,6 +294,9 @@ class GsRodTableDialog(QtWidgets.QDialog):
             if part.isdigit():
                 result.append(int(part))
         return tuple(result) if result else DEFAULT_GS_VALUES
+
+    _ROUND_STEP_MAP = {"None": 0, "5": 5, "10": 10}
+    _ROUND_MODE_MAP = {"Nearest": "nearest", "Up": "up"}
 
     def _build_config(self) -> GsRodConfig:
         return GsRodConfig(
@@ -289,6 +310,8 @@ class GsRodTableDialog(QtWidgets.QDialog):
             unit_timing=self.line_unit_timing.text().strip() or "min:s",
             footer=self.line_footer.text().strip(),
             rod_first=self._rod_first,
+            round_step=self._ROUND_STEP_MAP.get(self.combo_round_step.currentText(), 0),
+            round_mode=self._ROUND_MODE_MAP.get(self.combo_round_mode.currentText(), "nearest"),
         )
 
     def _refresh_preview(self) -> None:

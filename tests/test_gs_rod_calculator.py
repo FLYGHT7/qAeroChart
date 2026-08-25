@@ -76,6 +76,63 @@ class TestRodFormulaMonotonicity:
         assert compute_rod(gs, 3.0) < compute_rod(gs, 5.0) < compute_rod(gs, 7.0)
 
 
+class TestRodFormulaNoRoundingDefault:
+    """round_step=0 (the default) must reproduce today's exact behaviour."""
+
+    GRADIENT = 5.3
+
+    @pytest.mark.parametrize("gs, expected", [
+        (70, 375), (90, 482), (100, 536),
+        (120, 643), (140, 750), (160, 857),
+    ])
+    def test_default_round_step_matches_unrounded(self, gs, expected):
+        assert compute_rod(gs, self.GRADIENT) == expected
+        assert compute_rod(gs, self.GRADIENT, round_step=0) == expected
+        assert compute_rod(gs, self.GRADIENT, round_step=0, round_mode="up") == expected
+
+
+class TestRodFormulaRounding:
+    """Rounding to 5 or 10, in 'nearest' and 'up' modes.
+
+    Base (unrounded) values for gradient=5.3:
+    gs=70->375, gs=90->482, gs=100->536, gs=120->643, gs=140->750, gs=160->857
+    """
+
+    GRADIENT = 5.3
+
+    @pytest.mark.parametrize("gs, expected", [
+        (70, 375), (90, 480), (100, 535),
+        (120, 645), (140, 750), (160, 855),
+    ])
+    def test_round_step_5_nearest(self, gs, expected):
+        assert compute_rod(gs, self.GRADIENT, round_step=5, round_mode="nearest") == expected
+
+    @pytest.mark.parametrize("gs, expected", [
+        (70, 375), (90, 485), (100, 540),
+        (120, 645), (140, 750), (160, 860),
+    ])
+    def test_round_step_5_up(self, gs, expected):
+        assert compute_rod(gs, self.GRADIENT, round_step=5, round_mode="up") == expected
+
+    @pytest.mark.parametrize("gs, expected", [
+        (70, 380), (90, 480), (100, 540),
+        (120, 640), (140, 750), (160, 860),
+    ])
+    def test_round_step_10_nearest(self, gs, expected):
+        assert compute_rod(gs, self.GRADIENT, round_step=10, round_mode="nearest") == expected
+
+    @pytest.mark.parametrize("gs, expected", [
+        (70, 380), (90, 490), (100, 540),
+        (120, 650), (140, 750), (160, 860),
+    ])
+    def test_round_step_10_up(self, gs, expected):
+        assert compute_rod(gs, self.GRADIENT, round_step=10, round_mode="up") == expected
+
+    def test_step_10_nearest_tie_rounds_up(self):
+        # gs=70 -> 375, remainder=5 vs step=10 -> exact tie, must round up to 380
+        assert compute_rod(70, self.GRADIENT, round_step=10, round_mode="nearest") == 380
+
+
 # ── compute_table structure ────────────────────────────────────────────────────
 
 class TestComputeTableWithTitle:
@@ -259,3 +316,49 @@ class TestComputeTableRowOrder:
             rod_first=True,
         )
         assert len(compute_table(cfg_default)) == len(compute_table(cfg_rod_first))
+
+
+# ── ROD rounding propagation (Issue #116) ───────────────────────────────────────
+
+class TestComputeTableRoundingPropagation:
+    """round_step/round_mode must affect only the ROD row, not timing or structure."""
+
+    def test_rod_row_rounded_timing_row_untouched(self):
+        cfg_plain = GsRodConfig(distance_nm=5.2, gradient_pct=5.3, title="")
+        cfg_rounded = GsRodConfig(
+            distance_nm=5.2, gradient_pct=5.3, title="",
+            round_step=10, round_mode="up",
+        )
+        rows_plain = compute_table(cfg_plain)
+        rows_rounded = compute_table(cfg_rounded)
+
+        # Row 0 = header, row 1 = timing, row 2 = rod (title="" so no title row)
+        assert rows_plain[1] == rows_rounded[1]  # timing row unaffected by rounding
+        assert rows_plain[2] != rows_rounded[2]  # rod row values changed
+
+        rod_row = rows_rounded[2]
+        assert rod_row[2:] == ["380", "490", "540", "650", "750", "860"]
+
+    def test_round_step_zero_preserves_row_values(self):
+        cfg_default = GsRodConfig(distance_nm=5.2, gradient_pct=5.3, title="")
+        cfg_explicit_zero = GsRodConfig(
+            distance_nm=5.2, gradient_pct=5.3, title="", round_step=0, round_mode="up",
+        )
+        assert compute_table(cfg_default) == compute_table(cfg_explicit_zero)
+
+    def test_row_count_and_structure_unaffected_by_rounding(self):
+        cfg_plain = GsRodConfig(
+            distance_nm=5.2, gradient_pct=5.3, title="Rate of Descent", footer="note",
+        )
+        cfg_rounded = GsRodConfig(
+            distance_nm=5.2, gradient_pct=5.3, title="Rate of Descent", footer="note",
+            round_step=5, round_mode="nearest",
+        )
+        rows_plain = compute_table(cfg_plain)
+        rows_rounded = compute_table(cfg_rounded)
+        assert len(rows_plain) == len(rows_rounded)
+        assert len(rows_plain[0]) == len(rows_rounded[0])
+        assert rows_plain[0] == rows_rounded[0]   # title row unaffected
+        assert rows_plain[1] == rows_rounded[1]   # header row unaffected
+        assert rows_plain[2] == rows_rounded[2]   # timing row unaffected
+        assert rows_plain[-1] == rows_rounded[-1]  # footer row unaffected
