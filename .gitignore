@@ -60,3 +60,6 @@ skills-lock.json
 
 # ── Project docs (generated; tracked separately) ──────────────────────────────
 /docs/
+
+# ── Local-only CI (we run flake8/bandit/pytest ourselves; not shipped, not on GitHub) ──
+/.github/
