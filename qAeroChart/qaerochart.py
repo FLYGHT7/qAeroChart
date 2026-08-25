@@ -429,6 +429,32 @@ class QAeroChart:
         except Exception:  # nosec B110 - non-critical menu/toolbar setup; other actions still init
             pass
 
+        # Export Layer Paths actions (Issue #110) — menu-only, no toolbar icon per the issue
+        self.export_layer_paths_csv_action = QAction(
+            self.tr('Export Layer Paths (CSV)'), self.iface.mainWindow())
+        self.export_layer_paths_csv_action.setObjectName('qAeroChartExportLayerPathsCsvAction')
+        self.export_layer_paths_csv_action.setStatusTip(
+            self.tr('Export an inventory of layer names, sources and CRS to a CSV file'))
+        self.export_layer_paths_csv_action.triggered.connect(lambda: self._export_layer_paths('csv'))
+
+        self.export_layer_paths_xlsx_action = QAction(
+            self.tr('Export Layer Paths (XLSX)'), self.iface.mainWindow())
+        self.export_layer_paths_xlsx_action.setObjectName('qAeroChartExportLayerPathsXlsxAction')
+        if HAS_OPENPYXL:
+            self.export_layer_paths_xlsx_action.setStatusTip(
+                self.tr('Export an inventory of layer names, sources and CRS to a formatted XLSX file'))
+        else:
+            self.export_layer_paths_xlsx_action.setEnabled(False)
+            self.export_layer_paths_xlsx_action.setStatusTip(openpyxl_missing_reason())
+        self.export_layer_paths_xlsx_action.triggered.connect(lambda: self._export_layer_paths('xlsx'))
+
+        try:
+            if self.top_menu:
+                self.top_menu.addAction(self.export_layer_paths_csv_action)
+                self.top_menu.addAction(self.export_layer_paths_xlsx_action)
+        except Exception:  # nosec B110 - non-critical menu/toolbar setup; other actions still init
+            pass
+
         # Initialize map tool manager — wrapped in try/except so a failure here
         # does NOT prevent layer_manager / controller from initialising (the
         # critical path for creating layers).
