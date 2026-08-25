@@ -47,6 +47,9 @@ desktop.ini
 # ── Logs ──────────────────────────────────────────────────────────────────────
 *.log
 
+# ── QGIS runtime artifacts ──────────────────────────────────────────────────
+symbology-style.db
+
 # ── AI / agent config (not for contributors) ──────────────────────────────────
 .agents/
 .agent/

@@ -35,6 +35,8 @@ from .horizontal_scale_dialog import HorizontalScaleDockWidget
 from .holding_dock import HoldingDockWidget
 from .msa_dock import MSADockWidget
 from .north_arrow_dock import NorthArrowDockWidget
+from .core.layer_inventory import build_inventory
+from .core.inventory_exporter import HAS_OPENPYXL, openpyxl_missing_reason, write_csv, write_xlsx
 from .utils.logger import log
 from .utils.qt_compat import MsgLevel, Qt
 import os.path
@@ -126,6 +128,9 @@ class QAeroChart:
         # North Arrow dock (Issue #108)
         self._north_arrow_dock = None
         self.north_arrow_action = None
+        # Export Layer Paths actions (Issue #110)
+        self.export_layer_paths_csv_action = None
+        self.export_layer_paths_xlsx_action = None
 
     # noinspection PyMethodMayBeStatic
     def tr(self, message):
@@ -409,6 +414,32 @@ class QAeroChart:
         except Exception:  # nosec B110 - non-critical menu/toolbar setup; other actions still init
             pass
 
+        # Export Layer Paths actions (Issue #110) — menu-only, no toolbar icon per the issue
+        self.export_layer_paths_csv_action = QAction(
+            self.tr('Export Layer Paths (CSV)'), self.iface.mainWindow())
+        self.export_layer_paths_csv_action.setObjectName('qAeroChartExportLayerPathsCsvAction')
+        self.export_layer_paths_csv_action.setStatusTip(
+            self.tr('Export an inventory of layer names, sources and CRS to a CSV file'))
+        self.export_layer_paths_csv_action.triggered.connect(lambda: self._export_layer_paths('csv'))
+
+        self.export_layer_paths_xlsx_action = QAction(
+            self.tr('Export Layer Paths (XLSX)'), self.iface.mainWindow())
+        self.export_layer_paths_xlsx_action.setObjectName('qAeroChartExportLayerPathsXlsxAction')
+        if HAS_OPENPYXL:
+            self.export_layer_paths_xlsx_action.setStatusTip(
+                self.tr('Export an inventory of layer names, sources and CRS to a formatted XLSX file'))
+        else:
+            self.export_layer_paths_xlsx_action.setEnabled(False)
+            self.export_layer_paths_xlsx_action.setStatusTip(openpyxl_missing_reason())
+        self.export_layer_paths_xlsx_action.triggered.connect(lambda: self._export_layer_paths('xlsx'))
+
+        try:
+            if self.top_menu:
+                self.top_menu.addAction(self.export_layer_paths_csv_action)
+                self.top_menu.addAction(self.export_layer_paths_xlsx_action)
+        except Exception:  # nosec B110 - non-critical menu/toolbar setup; other actions still init
+            pass
+
         # Initialize map tool manager — wrapped in try/except so a failure here
         # does NOT prevent layer_manager / controller from initialising (the
         # critical path for creating layers).
@@ -596,6 +627,12 @@ class QAeroChart:
             self._north_arrow_dock = None
         if self.north_arrow_action:
             self.north_arrow_action = None
+
+        # Clean up Export Layer Paths actions (Issue #110)
+        if self.export_layer_paths_csv_action:
+            self.export_layer_paths_csv_action = None
+        if self.export_layer_paths_xlsx_action:
+            self.export_layer_paths_xlsx_action = None
 
     # --------------------------------------------------------------------------
 
