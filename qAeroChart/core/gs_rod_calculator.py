@@ -30,6 +30,8 @@ class GsRodConfig:
     unit_timing: str = "min:s"
     footer: str = ""
     rod_first: bool = False  # Issue #120: swap the timing/ROD row order when True
+    round_step: int = 0          # Issue #116: 0 = no rounding, else 5 or 10
+    round_mode: str = "nearest"  # "nearest" | "up" — ignored when round_step == 0
 
 
 def _format_seconds(total: float) -> str:
@@ -45,10 +47,32 @@ def compute_timing(distance_nm: float, gs_kt: int) -> str:
     return _format_seconds(seconds)
 
 
-def compute_rod(gs_kt: int, gradient_pct: float) -> int:
-    """Return rate of descent in ft/min, truncated to nearest integer."""
+def compute_rod(
+    gs_kt: int,
+    gradient_pct: float,
+    round_step: int = 0,
+    round_mode: str = "nearest",
+) -> int:
+    """Return rate of descent in ft/min, truncated to nearest integer.
+
+    round_step: 0 (default) disables rounding — preserves the exact
+        truncated value. Pass 5 or 10 to round to that multiple.
+    round_mode: "nearest" (ties round up) or "up" (ceiling to next
+        multiple). Ignored when round_step <= 0.
+    """
     # ROD (ft/min) = GS (kt) × gradient (%) × NM_to_ft / 100 / 60
-    return math.floor(gs_kt * gradient_pct * _NM_TO_FT / 100.0 / 60.0)
+    value = math.floor(gs_kt * gradient_pct * _NM_TO_FT / 100.0 / 60.0)
+    if round_step <= 0:
+        return value
+    remainder = value % round_step
+    if remainder == 0:
+        return value
+    if round_mode == "up":
+        return value - remainder + round_step
+    # "nearest" (default) — exact ties (remainder == round_step / 2) round up
+    if remainder < round_step / 2:
+        return value - remainder
+    return value - remainder + round_step
 
 
 def compute_table(cfg: GsRodConfig) -> list[list[str]]:
@@ -89,7 +113,10 @@ def compute_table(cfg: GsRodConfig) -> list[list[str]]:
 
     # ── ROD row ─────────────────────────────────────────────────────────
     label_r = cfg.label_rod or f"Rate of Descent {cfg.gradient_pct:.1f}%"
-    rod_vals = [str(compute_rod(gs, cfg.gradient_pct)) for gs in cfg.gs_values]
+    rod_vals = [
+        str(compute_rod(gs, cfg.gradient_pct, cfg.round_step, cfg.round_mode))
+        for gs in cfg.gs_values
+    ]
     rod_row = [label_r, "ft/min"] + rod_vals
 
     rows.extend([rod_row, timing_row] if cfg.rod_first else [timing_row, rod_row])
