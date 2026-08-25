@@ -35,8 +35,8 @@ from .horizontal_scale_dialog import HorizontalScaleDockWidget
 from .holding_dock import HoldingDockWidget
 from .msa_dock import MSADockWidget
 from .north_arrow_dock import NorthArrowDockWidget
-from .core.layer_inventory import build_inventory
-from .core.inventory_exporter import write_csv, write_xlsx
+from .core.aoi_extractor import extract_aoi
+from .ui.aoi_extraction_dialog import AoiExtractionDialog
 from .utils.logger import log
 from .utils.qt_compat import MsgLevel, Qt
 import os.path
@@ -128,6 +128,8 @@ class QAeroChart:
         # North Arrow dock (Issue #108)
         self._north_arrow_dock = None
         self.north_arrow_action = None
+        # AOI extraction action (Issue #111)
+        self.aoi_action = None
 
     # noinspection PyMethodMayBeStatic
     def tr(self, message):
@@ -305,6 +307,21 @@ class QAeroChart:
         self.north_arrow_action.triggered.connect(self.open_north_arrow_dock)
         self.tools_toolbar.addAction(self.north_arrow_action)
 
+        # Extract AOI Features action (Issue #111)
+        aoi_icon_path = os.path.join(self.plugin_dir, 'icons', 'icon_aoi_extract.svg')
+        if not os.path.exists(aoi_icon_path):
+            aoi_icon_path = icon_path
+        self.aoi_action = QAction(
+            QIcon(aoi_icon_path),
+            self.tr('Extract AOI Features'),
+            self.iface.mainWindow(),
+        )
+        self.aoi_action.setObjectName('qAeroChartAoiExtractAction')
+        self.aoi_action.setStatusTip(
+            self.tr('Copy features inside the current extent into memory layers or a GeoPackage'))
+        self.aoi_action.triggered.connect(self._run_aoi_extraction)
+        self.tools_toolbar.addAction(self.aoi_action)
+
         # Create top-level menu "qAeroChart" and insert it to the right of qPANSOPY if present (issue #3)
         try:
             menu_bar = self.iface.mainWindow().menuBar()
@@ -317,6 +334,7 @@ class QAeroChart:
             self.top_menu.addAction(self.holding_action)
             self.top_menu.addAction(self.msa_action)
             self.top_menu.addAction(self.north_arrow_action)
+            self.top_menu.addAction(self.aoi_action)
 
             # Try to position it right after qPANSOPY
             inserted = False
@@ -408,6 +426,32 @@ class QAeroChart:
         try:
             if self.top_menu:
                 self.top_menu.addAction(self.dist_alt_calculator_action)
+        except Exception:  # nosec B110 - non-critical menu/toolbar setup; other actions still init
+            pass
+
+        # Export Layer Paths actions (Issue #110) — menu-only, no toolbar icon per the issue
+        self.export_layer_paths_csv_action = QAction(
+            self.tr('Export Layer Paths (CSV)'), self.iface.mainWindow())
+        self.export_layer_paths_csv_action.setObjectName('qAeroChartExportLayerPathsCsvAction')
+        self.export_layer_paths_csv_action.setStatusTip(
+            self.tr('Export an inventory of layer names, sources and CRS to a CSV file'))
+        self.export_layer_paths_csv_action.triggered.connect(lambda: self._export_layer_paths('csv'))
+
+        self.export_layer_paths_xlsx_action = QAction(
+            self.tr('Export Layer Paths (XLSX)'), self.iface.mainWindow())
+        self.export_layer_paths_xlsx_action.setObjectName('qAeroChartExportLayerPathsXlsxAction')
+        if HAS_OPENPYXL:
+            self.export_layer_paths_xlsx_action.setStatusTip(
+                self.tr('Export an inventory of layer names, sources and CRS to a formatted XLSX file'))
+        else:
+            self.export_layer_paths_xlsx_action.setEnabled(False)
+            self.export_layer_paths_xlsx_action.setStatusTip(openpyxl_missing_reason())
+        self.export_layer_paths_xlsx_action.triggered.connect(lambda: self._export_layer_paths('xlsx'))
+
+        try:
+            if self.top_menu:
+                self.top_menu.addAction(self.export_layer_paths_csv_action)
+                self.top_menu.addAction(self.export_layer_paths_xlsx_action)
         except Exception:  # nosec B110 - non-critical menu/toolbar setup; other actions still init
             pass
 
@@ -599,7 +643,60 @@ class QAeroChart:
         if self.north_arrow_action:
             self.north_arrow_action = None
 
+        # Clean up AOI extraction action (Issue #111)
+        if self.aoi_action:
+            self.aoi_action = None
+
     # --------------------------------------------------------------------------
+
+    def _run_aoi_extraction(self) -> None:
+        """Extract AOI features into memory layers or a GeoPackage (issue #111)."""
+        try:
+            dialog = AoiExtractionDialog(self.iface.mainWindow())
+            # exec() returns the dialog result int; Accepted == 1 in PyQt5/6.
+            if not dialog.exec():
+                return
+
+            dest = dialog.get_dest()
+            gpkg_path = dialog.get_gpkg_path() if dest == 'gpkg' else None
+            canvas = self.iface.mapCanvas()
+
+            self.iface.mainWindow().setCursor(Qt.WaitCursor)
+            try:
+                result = extract_aoi(
+                    canvas.extent(),
+                    canvas.mapSettings().destinationCrs(),
+                    dest=dest,
+                    gpkg_path=gpkg_path,
+                    project=QgsProject.instance(),
+                )
+            finally:
+                self.iface.mainWindow().unsetCursor()
+
+            if result.extracted:
+                level = MsgLevel.Success
+                duration = 6
+            elif result.errors:
+                level = MsgLevel.Critical
+                duration = 8
+            else:
+                level = MsgLevel.Info
+                duration = 5
+            message = f"AOI extraction: {result.summary()}"
+            if result.errors:
+                message += " | " + "; ".join(result.errors[:3])
+            self.iface.messageBar().pushMessage(
+                "qAeroChart", message, level=level, duration=duration,
+            )
+            canvas.refresh()
+        except Exception as exc:
+            log(f"AOI extraction failed: {exc}", "ERROR")
+            try:
+                self.iface.messageBar().pushCritical(
+                    "qAeroChart", f"AOI extraction failed: {exc}",
+                )
+            except Exception:  # nosec B110 - message bar unavailable; already logged
+                pass
 
     def _active_layout_name(self):
         """Best-effort retrieval of the active layout name in the layout designer."""
