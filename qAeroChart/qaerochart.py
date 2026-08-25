@@ -37,6 +37,8 @@ from .msa_dock import MSADockWidget
 from .north_arrow_dock import NorthArrowDockWidget
 from .core.aoi_extractor import extract_aoi
 from .ui.aoi_extraction_dialog import AoiExtractionDialog
+from .core.layer_inventory import build_inventory
+from .core.inventory_exporter import HAS_OPENPYXL, openpyxl_missing_reason, write_csv, write_xlsx
 from .utils.logger import log
 from .utils.qt_compat import MsgLevel, Qt
 import os.path

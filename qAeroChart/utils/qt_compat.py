@@ -131,6 +131,7 @@ class _QtCompat:
 
     # Cursor shapes ------------------------------------------------------------
     CrossCursor = getattr(_Qt, "CrossCursor", None) or _Qt.CursorShape.CrossCursor
+    WaitCursor = getattr(_Qt, "WaitCursor", None) or _Qt.CursorShape.WaitCursor
 
     # Pen cap and join styles --------------------------------------------------
     FlatCap = getattr(_Qt, "FlatCap", None) or _Qt.PenCapStyle.FlatCap

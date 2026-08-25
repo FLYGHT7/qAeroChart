@@ -41,6 +41,9 @@ class TestQtCompat:
     def test_cross_cursor_accessible(self):
         assert Qt.CrossCursor is not None
 
+    def test_wait_cursor_accessible(self):
+        assert Qt.WaitCursor is not None
+
     def test_dash_line_accessible(self):
         assert Qt.DashLine is not None
 
