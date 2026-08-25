@@ -35,6 +35,8 @@ from .horizontal_scale_dialog import HorizontalScaleDockWidget
 from .holding_dock import HoldingDockWidget
 from .msa_dock import MSADockWidget
 from .north_arrow_dock import NorthArrowDockWidget
+from .core.layer_inventory import build_inventory
+from .core.inventory_exporter import write_csv, write_xlsx
 from .utils.logger import log
 from .utils.qt_compat import MsgLevel, Qt
 import os.path
