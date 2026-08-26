@@ -97,6 +97,9 @@ class GsRodTableDialog(QtWidgets.QDialog):
         self.combo_round_mode.addItems(["Nearest", "Up"])
         self.combo_round_mode.setEnabled(False)
 
+        self.check_show_timing = QtWidgets.QCheckBox("Show timing")
+        self.check_show_timing.setChecked(True)
+
         params_grid.addWidget(QtWidgets.QLabel("Distance (NM)"), 0, 0)
         params_grid.addWidget(self.spin_distance, 0, 1)
         params_grid.addWidget(QtWidgets.QLabel("Gradient (%)"), 0, 2)
@@ -125,6 +128,8 @@ class GsRodTableDialog(QtWidgets.QDialog):
         params_grid.addWidget(self.combo_round_step, 6, 1)
         params_grid.addWidget(QtWidgets.QLabel("Round mode"), 6, 2)
         params_grid.addWidget(self.combo_round_mode, 6, 3)
+
+        params_grid.addWidget(self.check_show_timing, 7, 0, 1, 2)
 
         root.addWidget(params_grp)
 
@@ -277,6 +282,7 @@ class GsRodTableDialog(QtWidgets.QDialog):
             widget.textChanged.connect(self._refresh_preview)
         self.combo_round_step.currentTextChanged.connect(self._on_round_step_changed)
         self.combo_round_mode.currentTextChanged.connect(self._refresh_preview)
+        self.check_show_timing.toggled.connect(self._refresh_preview)
 
     # ------------------------------------------------------------------
     # Preview logic
@@ -310,6 +316,7 @@ class GsRodTableDialog(QtWidgets.QDialog):
             unit_timing=self.line_unit_timing.text().strip() or "min:s",
             footer=self.line_footer.text().strip(),
             rod_first=self._rod_first,
+            show_timing=self.check_show_timing.isChecked(),
             round_step=self._ROUND_STEP_MAP.get(self.combo_round_step.currentText(), 0),
             round_mode=self._ROUND_MODE_MAP.get(self.combo_round_mode.currentText(), "nearest"),
         )
@@ -333,7 +340,12 @@ class GsRodTableDialog(QtWidgets.QDialog):
         title_rows = 1 if cfg.title else 0
         header_row_idx = title_rows
         footer_row_idx = n_rows - 1 if cfg.footer else None
-        self._data_row_indices = (header_row_idx + 1, header_row_idx + 2)
+        if cfg.show_timing:
+            self._data_row_indices = (header_row_idx + 1, header_row_idx + 2)
+        else:
+            self._data_row_indices = None
+        self.btn_move_up.setEnabled(cfg.show_timing)
+        self.btn_move_down.setEnabled(cfg.show_timing)
         for r, row in enumerate(rows):
             is_title = r < title_rows
             is_footer = r == footer_row_idx and footer_row_idx is not None

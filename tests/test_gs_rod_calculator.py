@@ -362,3 +362,52 @@ class TestComputeTableRoundingPropagation:
         assert rows_plain[1] == rows_rounded[1]   # header row unaffected
         assert rows_plain[2] == rows_rounded[2]   # timing row unaffected
         assert rows_plain[-1] == rows_rounded[-1]  # footer row unaffected
+
+
+# ── show_timing toggle (Issue #117) ──────────────────────────────────────────
+
+class TestComputeTableShowTiming:
+    """show_timing controls whether the FAF-MAPt row renders at all (Issue #117)."""
+
+    def test_default_show_timing_is_true(self):
+        assert GsRodConfig(distance_nm=5.2, gradient_pct=5.3).show_timing is True
+
+    def test_show_timing_true_includes_timing_row(self):
+        cfg = GsRodConfig(distance_nm=5.2, gradient_pct=5.3, title="")
+        rows = compute_table(cfg)
+        assert len(rows) == 3  # header + timing + rod
+        assert "FAF-MAPt" in rows[1][0]
+        assert "Rate of Descent" in rows[2][0]
+
+    def test_show_timing_false_omits_timing_row(self):
+        cfg = GsRodConfig(distance_nm=5.2, gradient_pct=5.3, title="", show_timing=False)
+        rows = compute_table(cfg)
+        assert len(rows) == 2  # header + rod only
+        assert rows[0][0] == "Ground Speed"
+        assert "Rate of Descent" in rows[1][0]
+
+    def test_show_timing_false_rod_row_values_unaffected(self):
+        cfg_with = GsRodConfig(distance_nm=5.2, gradient_pct=5.3, title="")
+        cfg_without = GsRodConfig(distance_nm=5.2, gradient_pct=5.3, title="", show_timing=False)
+        rows_with = compute_table(cfg_with)
+        rows_without = compute_table(cfg_without)
+        assert rows_with[2] == rows_without[1]  # same ROD row content, different position
+
+    def test_show_timing_false_with_title_and_footer(self):
+        cfg = GsRodConfig(
+            distance_nm=5.2, gradient_pct=5.3, title="Rate of Descent", footer="note",
+            show_timing=False,
+        )
+        rows = compute_table(cfg)
+        assert len(rows) == 4  # title + header + rod + footer
+        assert rows[0][0] == "Rate of Descent"
+        assert rows[-1][0] == "note"
+
+    def test_show_timing_false_rod_first_has_no_effect(self):
+        cfg_a = GsRodConfig(
+            distance_nm=5.2, gradient_pct=5.3, title="", show_timing=False, rod_first=False,
+        )
+        cfg_b = GsRodConfig(
+            distance_nm=5.2, gradient_pct=5.3, title="", show_timing=False, rod_first=True,
+        )
+        assert compute_table(cfg_a) == compute_table(cfg_b)
