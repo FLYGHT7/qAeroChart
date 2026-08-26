@@ -299,14 +299,14 @@ class HoldingDockWidget(QtWidgets.QDockWidget):
         turn_w = QWidget()
         turn_lay = QHBoxLayout(turn_w)
         turn_lay.setContentsMargins(0, 0, 0, 0)
-        self.radio_r = QRadioButton("Right (R)")
         self.radio_l = QRadioButton("Left (L)")
+        self.radio_r = QRadioButton("Right (R)")
         self.radio_r.setChecked(True)
         self._turn_group = QButtonGroup(self)
-        self._turn_group.addButton(self.radio_r)
         self._turn_group.addButton(self.radio_l)
-        turn_lay.addWidget(self.radio_r)
+        self._turn_group.addButton(self.radio_r)
         turn_lay.addWidget(self.radio_l)
+        turn_lay.addWidget(self.radio_r)
         form_params.addRow("Turn direction", turn_w)
 
         form_params.addRow(

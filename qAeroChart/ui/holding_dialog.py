@@ -89,11 +89,11 @@ class HoldingDialog(QtWidgets.QDialog):
         turn_w = QtWidgets.QWidget()
         turn_lay = QtWidgets.QHBoxLayout(turn_w)
         turn_lay.setContentsMargins(0, 0, 0, 0)
-        self.radio_r = QtWidgets.QRadioButton("R")
         self.radio_l = QtWidgets.QRadioButton("L")
+        self.radio_r = QtWidgets.QRadioButton("R")
         self.radio_r.setChecked(True)
-        turn_lay.addWidget(self.radio_r)
         turn_lay.addWidget(self.radio_l)
+        turn_lay.addWidget(self.radio_r)
         grid.addWidget(turn_w, 0, 3)
 
         # Row 1: IAS + altitude
