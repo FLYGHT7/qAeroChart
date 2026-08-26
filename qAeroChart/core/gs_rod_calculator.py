@@ -30,6 +30,7 @@ class GsRodConfig:
     unit_timing: str = "min:s"
     footer: str = ""
     rod_first: bool = False  # Issue #120: swap the timing/ROD row order when True
+    show_timing: bool = True  # Issue #117: omit the timing row entirely when False
     round_step: int = 0          # Issue #116: 0 = no rounding, else 5 or 10
     round_mode: str = "nearest"  # "nearest" | "up" — ignored when round_step == 0
 
@@ -106,10 +107,11 @@ def compute_table(cfg: GsRodConfig) -> list[list[str]]:
     header = ["Ground Speed", cfg.unit_gs] + [str(gs) for gs in cfg.gs_values]
     rows.append(header)
 
-    # ── Timing row ──────────────────────────────────────────────────────
-    label_t = cfg.label_timing or f"FAF-MAPt {cfg.distance_nm:.1f}NM"
-    timing_vals = [compute_timing(cfg.distance_nm, gs) for gs in cfg.gs_values]
-    timing_row = [label_t, cfg.unit_timing] + timing_vals
+    # ── Timing row (optional; Issue #117) ─────────────────────────────────
+    if cfg.show_timing:
+        label_t = cfg.label_timing or f"FAF-MAPt {cfg.distance_nm:.1f}NM"
+        timing_vals = [compute_timing(cfg.distance_nm, gs) for gs in cfg.gs_values]
+        timing_row = [label_t, cfg.unit_timing] + timing_vals
 
     # ── ROD row ─────────────────────────────────────────────────────────
     label_r = cfg.label_rod or f"Rate of Descent {cfg.gradient_pct:.1f}%"
@@ -119,7 +121,10 @@ def compute_table(cfg: GsRodConfig) -> list[list[str]]:
     ]
     rod_row = [label_r, "ft/min"] + rod_vals
 
-    rows.extend([rod_row, timing_row] if cfg.rod_first else [timing_row, rod_row])
+    if cfg.show_timing:
+        rows.extend([rod_row, timing_row] if cfg.rod_first else [timing_row, rod_row])
+    else:
+        rows.append(rod_row)
 
     # ── Optional footer row ─────────────────────────────────────────────
     if cfg.footer:
