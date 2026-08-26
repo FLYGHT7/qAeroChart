@@ -431,29 +431,17 @@ class QAeroChart:
         except Exception:  # nosec B110 - non-critical menu/toolbar setup; other actions still init
             pass
 
-        # Export Layer Paths actions (Issue #110) — menu-only, no toolbar icon per the issue
-        self.export_layer_paths_csv_action = QAction(
-            self.tr('Export Layer Paths (CSV)'), self.iface.mainWindow())
-        self.export_layer_paths_csv_action.setObjectName('qAeroChartExportLayerPathsCsvAction')
-        self.export_layer_paths_csv_action.setStatusTip(
-            self.tr('Export an inventory of layer names, sources and CRS to a CSV file'))
-        self.export_layer_paths_csv_action.triggered.connect(lambda: self._export_layer_paths('csv'))
-
-        self.export_layer_paths_xlsx_action = QAction(
-            self.tr('Export Layer Paths (XLSX)'), self.iface.mainWindow())
-        self.export_layer_paths_xlsx_action.setObjectName('qAeroChartExportLayerPathsXlsxAction')
-        if HAS_OPENPYXL:
-            self.export_layer_paths_xlsx_action.setStatusTip(
-                self.tr('Export an inventory of layer names, sources and CRS to a formatted XLSX file'))
-        else:
-            self.export_layer_paths_xlsx_action.setEnabled(False)
-            self.export_layer_paths_xlsx_action.setStatusTip(openpyxl_missing_reason())
-        self.export_layer_paths_xlsx_action.triggered.connect(lambda: self._export_layer_paths('xlsx'))
+        # Export Layer Paths action (Issues #110, #152) — menu-only, no toolbar icon
+        self.export_layer_paths_action = QAction(
+            self.tr('Export Layer Paths'), self.iface.mainWindow())
+        self.export_layer_paths_action.setObjectName('qAeroChartExportLayerPathsAction')
+        self.export_layer_paths_action.setStatusTip(
+            self.tr('Export an inventory of layer names, sources and CRS to CSV or XLSX'))
+        self.export_layer_paths_action.triggered.connect(self._export_layer_paths)
 
         try:
             if self.top_menu:
-                self.top_menu.addAction(self.export_layer_paths_csv_action)
-                self.top_menu.addAction(self.export_layer_paths_xlsx_action)
+                self.top_menu.addAction(self.export_layer_paths_action)
         except Exception:  # nosec B110 - non-critical menu/toolbar setup; other actions still init
             pass
 
@@ -717,11 +705,12 @@ class QAeroChart:
             pass
         return None
 
-    def _export_layer_paths(self, extension: str) -> None:
-        """Export the layer inventory to CSV or XLSX (issue #110).
+    def _export_layer_paths(self) -> None:
+        """Export the layer inventory to CSV or XLSX (issues #110, #152).
 
-        *extension* is ``'csv'`` or ``'xlsx'``; XLSX requires openpyxl
-        (the action is disabled when it is missing).
+        Shows a file dialog with a format filter so the user picks format
+        and destination in one step.  If XLSX is chosen but openpyxl is
+        missing, warns and re-opens the dialog.
         """
         try:
             project = QgsProject.instance()
@@ -740,20 +729,35 @@ class QAeroChart:
                 os.path.splitext(os.path.basename(project_file))[0]
                 if project_file else "Untitled_Project"
             )
-            default_path = os.path.join(
-                os.path.expanduser("~"), f"{project_name}_layer_paths.{extension}"
-            )
-            label = 'Excel file (*.xlsx)' if extension == 'xlsx' else 'CSV file (*.csv)'
-            file_path, _ = QFileDialog.getSaveFileName(
-                self.iface.mainWindow(),
-                f"Export Layer Paths ({extension.upper()})",
-                default_path,
-                label,
-            )
-            if not file_path:
-                return
 
-            writer = write_xlsx if extension == 'xlsx' else write_csv
+            file_filter = 'CSV (*.csv)'
+            if HAS_OPENPYXL:
+                file_filter += ';;Excel (*.xlsx)'
+
+            while True:
+                default_path = os.path.join(
+                    os.path.expanduser("~"),
+                    f"{project_name}_layer_paths.csv",
+                )
+                file_path, _ = QFileDialog.getSaveFileName(
+                    self.iface.mainWindow(),
+                    "Export Layer Paths",
+                    default_path,
+                    file_filter,
+                )
+                if not file_path:
+                    return
+
+                ext = os.path.splitext(file_path)[1].lower()
+                if ext == '.xlsx' and not HAS_OPENPYXL:
+                    self.iface.messageBar().pushWarning(
+                        "qAeroChart",
+                        openpyxl_missing_reason(),
+                    )
+                    continue
+                break
+
+            writer = write_xlsx if ext == '.xlsx' else write_csv
             saved = writer(rows, file_path)
             self.iface.messageBar().pushMessage(
                 "qAeroChart",
