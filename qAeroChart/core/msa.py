@@ -13,6 +13,8 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 
+from .bearing_utils import resolve_true_bearing
+
 NM_TO_METERS = 1852.0
 
 
@@ -35,22 +37,6 @@ class MSASectorGeometry:
     start_true: float
     end_true: float
     sector: MSASector
-
-
-def resolve_true_bearing(
-    input_brg: float, *, is_magnetic: bool, mag_var_signed: float, is_inbound: bool
-) -> float:
-    """Convert a user-entered bearing to a true bearing in degrees 0-360.
-
-    ``is_inbound`` reverses the bearing 180° first (bearings TO the station are
-    stored as the reciprocal outbound-FROM bearing before the sector is drawn).
-    ``mag_var_signed`` is already signed (positive = East, negative = West) —
-    callers own the E/W → sign conversion.
-    """
-    brg = (input_brg + 180.0) % 360.0 if is_inbound else input_brg
-    if is_magnetic:
-        brg = (brg + mag_var_signed) % 360.0
-    return brg % 360.0
 
 
 def build_sector_ring(

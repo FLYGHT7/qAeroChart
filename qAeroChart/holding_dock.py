@@ -259,6 +259,43 @@ class HoldingDockWidget(QtWidgets.QDockWidget):
             self._spin_field("track", QDoubleSpinBox, 0.0, 360.0, 180.0, 1.0, decimals=1),
         )
 
+        ref_w = QWidget()
+        ref_lay = QVBoxLayout(ref_w)
+        ref_lay.setContentsMargins(0, 0, 0, 0)
+
+        north_row = QHBoxLayout()
+        self.radio_mag = QRadioButton("Magnetic")
+        self.radio_true = QRadioButton("True")
+        self.radio_mag.setChecked(True)
+        self._north_group = QButtonGroup(self)
+        self._north_group.addButton(self.radio_mag)
+        self._north_group.addButton(self.radio_true)
+        north_row.addWidget(self.radio_mag)
+        north_row.addWidget(self.radio_true)
+        north_row.addStretch()
+        ref_lay.addLayout(north_row)
+
+        self.magvar_container = QWidget()
+        magvar_row = QHBoxLayout(self.magvar_container)
+        magvar_row.setContentsMargins(0, 4, 0, 0)
+        magvar_row.addWidget(QLabel("Mag Var:"))
+        self.spin_magvar = QDoubleSpinBox()
+        self.spin_magvar.setRange(0.0, 180.0)
+        self.spin_magvar.setDecimals(2)
+        magvar_row.addWidget(self.spin_magvar)
+        self.radio_east = QRadioButton("E")
+        self.radio_west = QRadioButton("W")
+        self.radio_east.setChecked(True)
+        self._ew_group = QButtonGroup(self)
+        self._ew_group.addButton(self.radio_east)
+        self._ew_group.addButton(self.radio_west)
+        magvar_row.addWidget(self.radio_east)
+        magvar_row.addWidget(self.radio_west)
+        magvar_row.addStretch()
+        ref_lay.addWidget(self.magvar_container)
+
+        form_params.addRow("Reference North", ref_w)
+
         turn_w = QWidget()
         turn_lay = QHBoxLayout(turn_w)
         turn_lay.setContentsMargins(0, 0, 0, 0)
@@ -311,6 +348,10 @@ class HoldingDockWidget(QtWidgets.QDockWidget):
 
         # Connect live preview updates
         self.radio_r.toggled.connect(self._update_computed)
+        self.radio_mag.toggled.connect(self._toggle_magvar_visibility)
+        self.radio_mag.toggled.connect(self._update_computed)
+        self.spin_magvar.valueChanged.connect(self._update_computed)
+        self.radio_east.toggled.connect(self._update_computed)
         for attr in ("track", "ias", "alt", "isa", "bank", "leg"):
             w = getattr(self, f"dspin_{attr}", None)
             if w:
@@ -339,6 +380,12 @@ class HoldingDockWidget(QtWidgets.QDockWidget):
         box.setValue(default)
         setattr(self, f"dspin_{attr}", box)
         return box
+
+    def _toggle_magvar_visibility(self, is_magnetic_checked):
+        self.magvar_container.setVisible(is_magnetic_checked)
+
+    def _magvar_signed(self) -> float:
+        return -self.spin_magvar.value() if self.radio_west.isChecked() else self.spin_magvar.value()
 
     # ------------------------------------------------------------------
     # Menu / form navigation
@@ -370,6 +417,9 @@ class HoldingDockWidget(QtWidgets.QDockWidget):
         self.dspin_bank.setValue(25.0)
         self.dspin_leg.setValue(1.0)
         self.radio_r.setChecked(True)
+        self.radio_mag.setChecked(True)
+        self.spin_magvar.setValue(0.0)
+        self.radio_east.setChecked(True)
         self.radio_fix_line.setChecked(True)
         self.radio_line_end.setChecked(True)
         self.origin_point = None
@@ -403,6 +453,12 @@ class HoldingDockWidget(QtWidgets.QDockWidget):
         self.dspin_bank.setValue(params.get("bank_deg", 25.0))
         self.dspin_leg.setValue(params.get("leg_min", 1.0))
         (self.radio_l if params.get("turn") == "L" else self.radio_r).setChecked(True)
+
+        is_magnetic = params.get("is_magnetic", True)
+        (self.radio_mag if is_magnetic else self.radio_true).setChecked(True)
+        mag_var = params.get("mag_var_signed", 0.0)
+        self.spin_magvar.setValue(abs(mag_var))
+        (self.radio_west if mag_var < 0 else self.radio_east).setChecked(True)
 
         fix = params.get("_fix") or {}
         x, y = fix.get("x"), fix.get("y")
@@ -690,6 +746,8 @@ class HoldingDockWidget(QtWidgets.QDockWidget):
             isa_var=self.dspin_isa.value(),
             bank_deg=self.dspin_bank.value(),
             leg_min=self.dspin_leg.value(),
+            is_magnetic=self.radio_mag.isChecked(),
+            mag_var_signed=self._magvar_signed(),
         )
 
     def _run_params(self, params: dict):
@@ -709,6 +767,8 @@ class HoldingDockWidget(QtWidgets.QDockWidget):
             isa_var=params["isa_var"],
             bank_deg=params["bank_deg"],
             leg_min=params["leg_min"],
+            is_magnetic=params.get("is_magnetic", True),
+            mag_var_signed=params.get("mag_var_signed", 0.0),
         )
         result = build_holding(hp)
         layer = self._layer_manager.get_or_create_layer(iface)
@@ -768,6 +828,8 @@ class HoldingDockWidget(QtWidgets.QDockWidget):
                 "isa_var": hp.isa_var,
                 "bank_deg": hp.bank_deg,
                 "leg_min": hp.leg_min,
+                "is_magnetic": hp.is_magnetic,
+                "mag_var_signed": hp.mag_var_signed,
                 "_fix": {"x": self.origin_point.x(), "y": self.origin_point.y()},
                 "holding_id": holding_id,
             }

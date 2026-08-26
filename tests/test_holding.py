@@ -198,3 +198,56 @@ class TestFixAndTrackFromLine:
     def test_degenerate_line_raises(self):
         with pytest.raises(ValueError):
             fix_and_track_from_line([(0.0, 0.0)], use_end=True)
+
+
+# ---------------------------------------------------------------------------
+# Magnetic variation / true-track conversion (Issue #137)
+# ---------------------------------------------------------------------------
+
+class TestMagneticVariation:
+    def _params(self, **overrides):
+        base = dict(
+            fix_x=0.0, fix_y=0.0, inbound_track=180.0, turn='R',
+            ias_kt=195.0, altitude_ft=10000.0, isa_var=15.0,
+            bank_deg=25.0, leg_min=1.0,
+        )
+        base.update(overrides)
+        return HoldingParameters(**base)
+
+    def test_default_matches_pre_137_behavior(self):
+        default = build_holding(self._params())
+        explicit_no_op = build_holding(
+            self._params(is_magnetic=True, mag_var_signed=0.0)
+        )
+        assert default.fix == explicit_no_op.fix
+        assert default.outbound_pt == explicit_no_op.outbound_pt
+        assert default.segments == explicit_no_op.segments
+
+    def test_true_mode_ignores_variation(self):
+        true_mode = build_holding(
+            self._params(inbound_track=90.0, is_magnetic=False, mag_var_signed=45.0)
+        )
+        passthrough = build_holding(self._params(inbound_track=90.0))
+        assert true_mode.outbound_pt == passthrough.outbound_pt
+        assert true_mode.segments == passthrough.segments
+
+    def test_east_variation_matches_equivalent_true_track(self):
+        magnetic = build_holding(
+            self._params(inbound_track=0.0, is_magnetic=True, mag_var_signed=90.0)
+        )
+        true_equivalent = build_holding(
+            self._params(inbound_track=90.0, is_magnetic=False)
+        )
+        assert magnetic.fix == true_equivalent.fix
+        assert magnetic.outbound_pt.x == pytest.approx(true_equivalent.outbound_pt.x, abs=1e-6)
+        assert magnetic.outbound_pt.y == pytest.approx(true_equivalent.outbound_pt.y, abs=1e-6)
+
+    def test_west_variation_subtracts(self):
+        magnetic = build_holding(
+            self._params(inbound_track=180.0, is_magnetic=True, mag_var_signed=-90.0)
+        )
+        true_equivalent = build_holding(
+            self._params(inbound_track=90.0, is_magnetic=False)
+        )
+        assert magnetic.outbound_pt.x == pytest.approx(true_equivalent.outbound_pt.x, abs=1e-6)
+        assert magnetic.outbound_pt.y == pytest.approx(true_equivalent.outbound_pt.y, abs=1e-6)
