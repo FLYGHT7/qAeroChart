@@ -23,13 +23,9 @@ experimental=True
 
 changelog=
     Version 0.1.0:
-	- bandit correction 
+    - bandit correction 
     - dock panel overflow bug 
-    - Distance/Altitude Automatic
-    - Holding nominal should have similar functionality to qPANSOPY
-	- profile_point_symbol change some attribute names
-    - Vertical Scale default azimuth should be 0
-    - profile_carto_label degree symbol strange characters
+    - profile_point_symbol change some attribute names
     - Vertical Scale default azimuth should be 0
     - profile_carto_label degree symbol strange characters
     - Distance/Altitude Automatic
@@ -37,8 +33,13 @@ changelog=
     - Layout tables now have add button to expand/contract placement parameters
     - MSA generator tool included 
     - GS/Rate of Descent Table builder allow row reordering
-	- Implement North Arrow feature with UI and geometry calculations
-    - Layer Path Export to CSV or XLSX#135
+    - Round Rate of Descent to 5/10 (Nearest / Up)
+    - Implement North Arrow feature with UI and geometry calculations
+    - Layer Path Export to CSV or XLSX
+    - Extract AOI Features to Memory Layers or GeoPackage
+    - Option to show or hide timing in the GS/ROD table
+    - Round Distance/Altitude Calculator to 5/10 (Nearest / Up)- #146
+    - Holding — convert magnetic Inbound track to true
 	Version 0.0.1:
     - Approach profile creation (MAPt, FAF, IF points)
     - Automatically organized memory layers in groups
