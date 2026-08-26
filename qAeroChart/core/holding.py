@@ -3,13 +3,17 @@
 Nominal holding pattern geometry calculator.
 
 Pure Python — no QGIS imports. Ported from qpansopy holding.py and wind_spiral.py.
-All distances in nautical miles, angles in degrees (magnetic), coordinates in map CRS units.
+All distances in nautical miles, coordinates in map CRS units. ``inbound_track``
+is magnetic or true degrees per ``HoldingParameters.is_magnetic``; it is
+converted to true internally via ``resolve_true_bearing`` before use (Issue #137).
 """
 from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
 from typing import NamedTuple
+
+from .bearing_utils import resolve_true_bearing
 
 
 class _Pt(NamedTuple):
@@ -28,6 +32,8 @@ class HoldingParameters:
     isa_var: float = 15.0  # ISA temperature deviation, °C (Issue #100)
     bank_deg: float = 25.0
     leg_min: float = 1.0
+    is_magnetic: bool = True
+    mag_var_signed: float = 0.0  # signed: positive = East, negative = West
 
 
 @dataclass
@@ -119,7 +125,12 @@ def build_holding(params: HoldingParameters) -> HoldingResult:
                                   params.isa_var, params.bank_deg)
     leg_nm = (tas / 3600.0) * (params.leg_min * 60.0)
 
-    azimuth = float(params.inbound_track)
+    azimuth = resolve_true_bearing(
+        params.inbound_track,
+        is_magnetic=params.is_magnetic,
+        mag_var_signed=params.mag_var_signed,
+        is_inbound=False,
+    )
     # side: +90 → left turn (aircraft turns left off fix), −90 → right turn
     side = 90.0 if params.turn.upper() == 'L' else -90.0
 
