@@ -38,7 +38,7 @@ changelog=
     - Layer Path Export to CSV or XLSX
     - Extract AOI Features to Memory Layers or GeoPackage
     - Option to show or hide timing in the GS/ROD table
-    - Round Distance/Altitude Calculator to 5/10 (Nearest / Up)- #146
+    - Round Distance/Altitude Calculator to 5/10 (Nearest / Up)
     - Holding — convert magnetic Inbound track to true
 	Version 0.0.1:
     - Approach profile creation (MAPt, FAF, IF points)
