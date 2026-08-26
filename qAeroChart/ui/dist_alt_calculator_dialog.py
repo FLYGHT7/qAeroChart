@@ -24,6 +24,9 @@ except ImportError:
 class DistAltCalculatorDialog(QtWidgets.QDialog):
     """Interactive builder for CDFA Distance/Altitude Calculator tables with live preview."""
 
+    _ROUND_STEP_MAP = {"None": 0, "5": 5, "10": 10}
+    _ROUND_MODE_MAP = {"Nearest": "nearest", "Up": "up"}
+
     def __init__(self, iface=None, parent=None):
         super().__init__(parent)
         self.iface = iface
@@ -93,6 +96,13 @@ class DistAltCalculatorDialog(QtWidgets.QDialog):
         self.check_offset.toggled.connect(self.spin_offset.setEnabled)
         self.check_offset.toggled.connect(self._refresh_preview)
 
+        self.combo_round_step = QtWidgets.QComboBox()
+        self.combo_round_step.addItems(["None", "5", "10"])
+
+        self.combo_round_mode = QtWidgets.QComboBox()
+        self.combo_round_mode.addItems(["Nearest", "Up"])
+        self.combo_round_mode.setEnabled(False)
+
         self.line_title = QtWidgets.QLineEdit("CDFA Distance/Altitude Table")
         self.line_title.setPlaceholderText("Leave blank to omit title row")
 
@@ -111,8 +121,13 @@ class DistAltCalculatorDialog(QtWidgets.QDialog):
         params_grid.addWidget(self.check_offset, 2, 2)
         params_grid.addWidget(self.spin_offset, 2, 3)
 
-        params_grid.addWidget(QtWidgets.QLabel("Title row"), 3, 0)
-        params_grid.addWidget(self.line_title, 3, 1, 1, 3)
+        params_grid.addWidget(QtWidgets.QLabel("Round Calculated Altitude to"), 3, 0)
+        params_grid.addWidget(self.combo_round_step, 3, 1)
+        params_grid.addWidget(QtWidgets.QLabel("Round mode"), 3, 2)
+        params_grid.addWidget(self.combo_round_mode, 3, 3)
+
+        params_grid.addWidget(QtWidgets.QLabel("Title row"), 4, 0)
+        params_grid.addWidget(self.line_title, 4, 1, 1, 3)
 
         root.addWidget(params_grp)
 
@@ -246,6 +261,12 @@ class DistAltCalculatorDialog(QtWidgets.QDialog):
         ):
             widget.valueChanged.connect(self._refresh_preview)
         self.line_title.textChanged.connect(self._refresh_preview)
+        self.combo_round_step.currentTextChanged.connect(self._on_round_step_changed)
+        self.combo_round_mode.currentTextChanged.connect(self._refresh_preview)
+
+    def _on_round_step_changed(self, text: str) -> None:
+        self.combo_round_mode.setEnabled(text != "None")
+        self._refresh_preview()
 
     # ------------------------------------------------------------------
     # Preview logic
@@ -260,6 +281,8 @@ class DistAltCalculatorDialog(QtWidgets.QDialog):
             oca_ft=self.spin_oca.value(),
             offset_enabled=self.check_offset.isChecked(),
             offset_distance_nm=self.spin_offset.value(),
+            round_step=self._ROUND_STEP_MAP.get(self.combo_round_step.currentText(), 0),
+            round_mode=self._ROUND_MODE_MAP.get(self.combo_round_mode.currentText(), "nearest"),
         )
 
     def _refresh_preview(self) -> None:

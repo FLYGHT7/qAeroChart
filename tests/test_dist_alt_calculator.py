@@ -1,4 +1,6 @@
-"""Unit tests for dist_alt_calculator — Issue #99."""
+"""Unit tests for dist_alt_calculator — Issue #99, Issue #119."""
+from dataclasses import replace
+
 import pytest
 
 from qAeroChart.core.dist_alt_calculator import (
@@ -6,6 +8,7 @@ from qAeroChart.core.dist_alt_calculator import (
     compute_steps,
     compute_summary,
     compute_table,
+    round_altitude,
     steps_to_numeric_columns,
 )
 
@@ -119,3 +122,89 @@ class TestValidation:
         )
         with pytest.raises(ValueError):
             compute_steps(cfg)
+
+
+class TestRoundAltitudeNoRoundingDefault:
+    def test_zero_step_returns_value_unchanged(self):
+        assert round_altitude(5933.95, round_step=0) == 5933.95
+
+    def test_default_args_no_rounding(self):
+        assert round_altitude(5933.95) == 5933.95
+
+    def test_round_mode_ignored_when_step_zero(self):
+        assert round_altitude(5933.95, round_step=0, round_mode="up") == 5933.95
+
+    def test_reference_row_d12_unaffected_by_default_config(self):
+        steps = compute_steps(REFERENCE_CFG)
+        row = next(s for s in steps if s.distance_label == "12")
+        assert row.calculated_altitude_ft == pytest.approx(5933.95, abs=0.01)
+        assert row.publication_altitude_ft == 5940
+
+
+class TestRoundAltitudeRounding:
+    @pytest.mark.parametrize(
+        "round_step, round_mode, expected",
+        [
+            (5, "nearest", 5935.0),
+            (5, "up", 5935.0),
+            (10, "nearest", 5930.0),
+            (10, "up", 5940.0),
+        ],
+    )
+    def test_rounding_cases(self, round_step, round_mode, expected):
+        assert round_altitude(5933.95, round_step, round_mode) == pytest.approx(expected, abs=0.01)
+
+    def test_exact_tie_rounds_up(self):
+        assert round_altitude(1005.0, round_step=10, round_mode="nearest") == 1010.0
+        assert round_altitude(1002.5, round_step=5, round_mode="nearest") == 1005.0
+
+
+class TestComputeStepsRoundingPropagation:
+    def test_publication_altitude_derived_from_rounded_value(self):
+        cfg_rounded = replace(REFERENCE_CFG, round_step=10, round_mode="nearest")
+        steps_plain = compute_steps(REFERENCE_CFG)
+        steps_rounded = compute_steps(cfg_rounded)
+        assert len(steps_plain) == len(steps_rounded)
+
+        row_plain = next(s for s in steps_plain if s.distance_label == "12")
+        row_rounded = next(s for s in steps_rounded if s.distance_label == "12")
+
+        assert row_plain.publication_altitude_ft == 5940
+        assert row_rounded.calculated_altitude_ft == pytest.approx(5930.0, abs=0.01)
+        assert row_rounded.publication_altitude_ft == 5930
+
+    def test_up_mode_matches_ceiling_publication_altitude(self):
+        cfg_rounded = replace(REFERENCE_CFG, round_step=10, round_mode="up")
+        row = next(s for s in compute_steps(cfg_rounded) if s.distance_label == "12")
+        assert row.calculated_altitude_ft == pytest.approx(5940.0, abs=0.01)
+        assert row.publication_altitude_ft == 5940
+
+
+class TestAdvisoryAltitudeRoundingSideEffect:
+    def test_rounding_flips_advisory_across_oca(self):
+        cfg_plain = replace(REFERENCE_CFG, oca_ft=5935)
+        cfg_rounded = replace(REFERENCE_CFG, oca_ft=5935, round_step=10, round_mode="nearest")
+
+        row_plain = next(s for s in compute_steps(cfg_plain) if s.distance_label == "12")
+        row_rounded = next(s for s in compute_steps(cfg_rounded) if s.distance_label == "12")
+
+        assert row_plain.publication_altitude_ft == 5940
+        assert row_plain.advisory_altitude != "below OCA"
+
+        assert row_rounded.publication_altitude_ft == 5930
+        assert row_rounded.advisory_altitude == "below OCA"
+
+
+class TestComputeTableRoundingFormatting:
+    def test_rounded_whole_number_still_formatted_with_two_decimals(self):
+        cfg_rounded = replace(REFERENCE_CFG, round_step=10, round_mode="up")
+        rows = compute_table(cfg_rounded)
+        row_12 = next(r for r in rows if r[0] == "12")
+        assert row_12[1] == "5940.00"
+
+    def test_row_and_column_count_unaffected_by_rounding(self):
+        cfg_rounded = replace(REFERENCE_CFG, round_step=10, round_mode="nearest")
+        rows_plain = compute_table(REFERENCE_CFG)
+        rows_rounded = compute_table(cfg_rounded)
+        assert len(rows_plain) == len(rows_rounded)
+        assert len(rows_plain[0]) == len(rows_rounded[0])

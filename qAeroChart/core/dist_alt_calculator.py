@@ -15,6 +15,7 @@ __all__ = [
     "compute_summary",
     "compute_steps",
     "compute_table",
+    "round_altitude",
     "steps_to_numeric_columns",
 ]
 
@@ -33,6 +34,8 @@ class DistAltConfig:
     oca_ft: float
     offset_enabled: bool = False
     offset_distance_nm: float = 0.0
+    round_step: int = 0
+    round_mode: str = "nearest"
 
 
 @dataclass(frozen=True)
@@ -57,6 +60,23 @@ def _format_distance_label(value: float) -> str:
     if value == int(value):
         return str(int(value))
     return f"{value:.1f}"
+
+
+def round_altitude(value: float, round_step: int = 0, round_mode: str = "nearest") -> float:
+    """Round an altitude value to the nearest multiple of ``round_step``.
+
+    ``round_step`` of 0 (default) disables rounding — returns ``value``
+    unchanged. ``round_mode`` is "nearest" (exact ties round up) or "up"
+    (ceiling to the next multiple); ignored when ``round_step <= 0``.
+    """
+    if round_step <= 0:
+        return value
+    quotient = value / round_step
+    if round_mode == "up":
+        rounded_quotient = math.ceil(quotient)
+    else:  # "nearest" — exact ties round up
+        rounded_quotient = math.floor(quotient + 0.5)
+    return float(rounded_quotient * round_step)
 
 
 def compute_summary(cfg: DistAltConfig) -> dict:
@@ -92,6 +112,7 @@ def compute_steps(cfg: DistAltConfig) -> list[DistAltStep]:
             continue
 
         calculated_altitude_ft = cfg.faf_altitude_ft - gradient * (cfg.faf_thr_distance_nm - d) * FT_PER_NM
+        calculated_altitude_ft = round_altitude(calculated_altitude_ft, cfg.round_step, cfg.round_mode)
         publication_altitude_ft = int(math.ceil(calculated_altitude_ft / 10.0) * 10)
         calculated_height_ft = round(publication_altitude_ft - cfg.thr_elevation_ft)
 
