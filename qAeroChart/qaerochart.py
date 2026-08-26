@@ -99,6 +99,7 @@ class QAeroChart:
         self._layout_toolbar_hooked = False
         self._layout_toolbars: list = []        # per-designer QToolBar instances (#87)
         self._layout_toolbar_windows: set = set()  # ids of windows already attached
+        self._layout_menus: list = []              # per-designer QMenu instances (#153)
 
         # Profile controller (will be initialized in initGui)
         self._profile_manager = None
@@ -574,6 +575,14 @@ class QAeroChart:
         self._layout_toolbars.clear()
         self._layout_toolbar_windows.clear()
 
+        # Remove per-designer qAeroChart menus (#153)
+        for menu in self._layout_menus:
+            try:
+                menu.parent().removeAction(menu.menuAction())
+            except Exception:  # nosec B110 - best-effort teardown step; other cleanup must still proceed
+                pass
+        self._layout_menus.clear()
+
         # Remove layout toolbar actions
         if self.distance_table_action:
             try:
@@ -972,6 +981,29 @@ class QAeroChart:
         window.addToolBar(toolbar)
         self._layout_toolbars.append(toolbar)
         self._layout_toolbar_windows.add(win_id)
+
+        # Insert qAeroChart menu after Settings in the Layout Designer menu bar (#153)
+        menu_bar = window.menuBar()
+        settings_action = None
+        for action in menu_bar.actions():
+            if action.text().replace('&', '').strip() == 'Settings':
+                settings_action = action
+                break
+
+        layout_menu = QMenu(self.tr('qAeroChart'), window)
+        layout_menu.setObjectName('qAeroChartLayoutMenu')
+        for action in (
+            self.distance_table_action, self.gs_rod_action,
+            self.oca_h_table_action, self.dist_alt_calculator_action,
+        ):
+            if action is not None:
+                layout_menu.addAction(action)
+
+        if settings_action is not None:
+            menu_bar.insertMenu(settings_action, layout_menu)
+        else:
+            menu_bar.addMenu(layout_menu)
+        self._layout_menus.append(layout_menu)
 
     # --------------------------------------------------------------------------
 
