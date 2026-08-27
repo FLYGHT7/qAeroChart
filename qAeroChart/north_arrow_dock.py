@@ -22,7 +22,7 @@ from qgis.PyQt.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-from qgis.core import QgsProject
+from qgis.core import QgsPointXY, QgsProject
 from qgis.utils import iface
 
 from .core.north_arrow import compute_arrow_geometry, format_var_label
@@ -138,6 +138,11 @@ class NorthArrowDockWidget(QtWidgets.QDockWidget):
     def _connect_ui_signals(self):
         self.btn_place.toggled.connect(self._on_place_toggled)
         self.btn_clear.clicked.connect(self._clear_all_arrows)
+        # Live preview: refresh when any parameter changes (Issue #151)
+        self.spin_true_len.valueChanged.connect(self._refresh_preview)
+        self.spin_mag_len.valueChanged.connect(self._refresh_preview)
+        self.spin_declination.valueChanged.connect(self._refresh_preview)
+        self._ew_group.buttonToggled.connect(self._refresh_preview)
 
     # ------------------------------------------------------------------
     # Values
@@ -174,6 +179,59 @@ class NorthArrowDockWidget(QtWidgets.QDockWidget):
             log(f"NorthArrowDock: could not persist config: {exc}", "WARNING")
 
     # ------------------------------------------------------------------
+    # Live preview (Issue #151)
+    # ------------------------------------------------------------------
+
+    def _generate_north_preview(self, point: QgsPointXY) -> dict:
+        """Return preview geometry for the north arrow at *point*.
+
+        Called by ``NorthArrowTool.canvasMoveEvent`` via the preview-generator
+        callable.  Returns a dict with ``'true_line'`` and ``'mag_line'``
+        keys, each a two-point polyline.
+        """
+        geom = compute_arrow_geometry(
+            point.x(),
+            point.y(),
+            self.spin_true_len.value() * 1000.0,
+            self.spin_mag_len.value() * 1000.0,
+            self._declination_signed(),
+        )
+        origin = QgsPointXY(geom.origin_x, geom.origin_y)
+        true_tip = QgsPointXY(geom.true_tip_x, geom.true_tip_y)
+        mag_tip = QgsPointXY(geom.mag_tip_x, geom.mag_tip_y)
+        return {
+            'true_line': [origin, true_tip],
+            'mag_line': [origin, mag_tip],
+        }
+
+    def _refresh_preview(self) -> None:
+        """Re-invoke the tool's canvas move to update rubberbands.
+
+        Triggers a synthetic move event so the preview reflects the latest
+        parameter values without requiring the user to move the mouse.
+        """
+        if self._map_tool is None:
+            return
+        canvas = iface.mapCanvas() if iface else None
+        if canvas is None:
+            return
+        try:
+            from qgis.PyQt.QtGui import QMouseEvent
+            from qgis.PyQt.QtCore import Qt as _Qt
+            pos = canvas.mousePosition()
+            event = QMouseEvent(
+                QMouseEvent.Type.MouseMove,
+                pos,
+                canvas.mapToGlobal(pos),
+                _Qt.MouseButton.NoButton,
+                _Qt.MouseButton.NoButton,
+                _Qt.KeyboardModifier.NoModifier,
+            )
+            self._map_tool.canvasMoveEvent(event)
+        except Exception as exc:
+            log(f"NorthArrowDock: preview refresh failed: {exc}", "WARNING")
+
+    # ------------------------------------------------------------------
     # Map-tool placement mode
     # ------------------------------------------------------------------
 
@@ -195,6 +253,7 @@ class NorthArrowDockWidget(QtWidgets.QDockWidget):
             self._map_tool.arrowPlaced.connect(self._on_arrow_placed)
             self._map_tool.deactivated.connect(self._on_tool_deactivated)
 
+        self._map_tool.set_preview_generator(self._generate_north_preview)
         self._prev_tool = canvas.mapTool()
         canvas.setMapTool(self._map_tool)
         self.lbl_status.setText("Click on the chart to place the north arrow.")
@@ -203,6 +262,7 @@ class NorthArrowDockWidget(QtWidgets.QDockWidget):
     def _stop_placement(self) -> None:
         canvas = iface.mapCanvas() if iface else None
         if canvas is not None and self._map_tool is not None:
+            self._map_tool.clear_feedback()
             try:
                 canvas.unsetMapTool(self._map_tool)
             except RuntimeError:  # nosec B110 - tool already torn down during QGIS shutdown
