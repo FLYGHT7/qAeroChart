@@ -52,7 +52,7 @@ class NorthArrowTool(QgsMapTool):
         self._mag_band = QgsRubberBand(self._canvas, _GEOM_LINE)
         self._mag_band.setColor(QColor(0, 100, 200, 200))  # blue, semi-transparent
         self._mag_band.setWidth(2)
-        self._mag_band.setPenStyle(Qt.DashLine)
+        self._mag_band.setLineStyle(Qt.DashLine)
         self._mag_band.hide()
 
     # ------------------------------------------------------------------
