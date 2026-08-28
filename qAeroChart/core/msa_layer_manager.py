@@ -80,8 +80,25 @@ class MsaLayerManager:
             sector = sec_geom.sector
             label = f"MSA {sector.altitude_ft:,.0f}"
             qpts = [QgsPointXY(x, y) for x, y in sec_geom.ring]
+            geom = QgsGeometry.fromPolygonXY([qpts])
+            if not geom.isGeosValid():
+                fixed = geom.makeValid()
+                if fixed.isEmpty():
+                    log(
+                        f"MsaLayerManager: sector {idx + 1} geometry invalid "
+                        f"and makeValid() produced an empty result "
+                        f"({geom.lastError()}); keeping original geometry",
+                        "WARNING",
+                    )
+                else:
+                    log(
+                        f"MsaLayerManager: sector {idx + 1} geometry was "
+                        f"invalid ({geom.lastError()}); fixed before commit",
+                        "WARNING",
+                    )
+                    geom = fixed
             feat = QgsFeature(layer.fields())
-            feat.setGeometry(QgsGeometry.fromPolygonXY([qpts]))
+            feat.setGeometry(geom)
             feat.setAttributes([
                 msa_id,
                 idx + 1,
