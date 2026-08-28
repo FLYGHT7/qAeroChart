@@ -45,6 +45,9 @@ class FakeDesigner:
 
     def __init__(self, window: MagicMock | None = None) -> None:
         self._window = window if window is not None else MagicMock()
+        # Ensure menuBar().actions() returns an empty list so the Settings
+        # lookup loop in _attach_action_to_designer completes gracefully.
+        self._window.menuBar().actions.return_value = []
 
     def window(self) -> MagicMock | None:
         return self._window
@@ -56,6 +59,7 @@ def _make_plugin() -> types.SimpleNamespace:
     # State attributes
     p._layout_toolbars = []
     p._layout_toolbar_windows = set()
+    p._layout_menus = []
     # Actions
     p.distance_table_action = MagicMock(name="distance_table_action")
     p.gs_rod_action = MagicMock(name="gs_rod_action")
@@ -167,6 +171,7 @@ class TestAttachActionToDesigner:
         plugin._attach_action_to_designer(FakeDesigner())
         assert len(plugin._layout_toolbars) == 2
         assert len(plugin._layout_toolbar_windows) == 2
+        assert len(plugin._layout_menus) == 2
 
         # Simulate unload clean-up
         for toolbar in plugin._layout_toolbars:
@@ -178,5 +183,13 @@ class TestAttachActionToDesigner:
         plugin._layout_toolbars.clear()
         plugin._layout_toolbar_windows.clear()
 
+        for menu in plugin._layout_menus:
+            try:
+                menu.parent().removeAction(menu.menuAction())
+            except Exception:
+                pass
+        plugin._layout_menus.clear()
+
         assert len(plugin._layout_toolbars) == 0
         assert len(plugin._layout_toolbar_windows) == 0
+        assert len(plugin._layout_menus) == 0
