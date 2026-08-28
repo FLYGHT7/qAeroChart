@@ -137,6 +137,9 @@ class _QtCompat:
     FlatCap = getattr(_Qt, "FlatCap", None) or _Qt.PenCapStyle.FlatCap
     MiterJoin = getattr(_Qt, "MiterJoin", None) or _Qt.PenJoinStyle.MiterJoin
 
+    # Pen style ---------------------------------------------------------------
+    DashLine = getattr(_Qt, "DashLine", None) or _Qt.PenStyle.DashLine
+
     # Dock widget areas --------------------------------------------------------
     RightDockWidgetArea = (
         getattr(_Qt, "RightDockWidgetArea", None)
