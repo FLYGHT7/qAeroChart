@@ -20,10 +20,11 @@
  *                                                                         *
  ***************************************************************************/
 """
-from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication
-from qgis.PyQt.QtGui import QIcon
-from qgis.PyQt.QtWidgets import QAction, QMenu, QToolBar, QFileDialog
+from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, QUrl
+from qgis.PyQt.QtGui import QIcon, QDesktopServices
+from qgis.PyQt.QtWidgets import QAction, QMenu, QToolBar, QFileDialog, QPushButton
 from qgis.core import QgsProject
+from qgis.gui import QgsMessageBar
 
 # Initialize Qt resources from file resources.py
 # from .resources import *
@@ -768,12 +769,18 @@ class QAeroChart:
 
             writer = write_xlsx if ext == '.xlsx' else write_csv
             saved = writer(rows, file_path)
-            self.iface.messageBar().pushMessage(
+            folder = os.path.dirname(saved)
+            widget = QgsMessageBar.createMessage(
                 "qAeroChart",
                 f"Layer paths exported to {saved}",
-                level=MsgLevel.Success,
-                duration=5,
             )
+            button = QPushButton(widget)
+            button.setText("Open Folder")
+            button.pressed.connect(
+                lambda p=folder: QDesktopServices.openUrl(
+                    QUrl.fromLocalFile(p)))
+            widget.layout().addWidget(button)
+            self.iface.messageBar().pushWidget(widget, MsgLevel.Success)
         except Exception as exc:
             log(f"Layer path export failed: {exc}", "ERROR")
             try:
