@@ -139,6 +139,7 @@ class _QtCompat:
 
     # Pen style ---------------------------------------------------------------
     DashLine = getattr(_Qt, "DashLine", None) or _Qt.PenStyle.DashLine
+    SolidLine = getattr(_Qt, "SolidLine", None) or _Qt.PenStyle.SolidLine
 
     # Dock widget areas --------------------------------------------------------
     RightDockWidgetArea = (
