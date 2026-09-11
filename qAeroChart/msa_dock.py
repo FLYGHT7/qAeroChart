@@ -249,6 +249,9 @@ class MSADockWidget(QtWidgets.QDockWidget):
         self.chk_create_carto_label = QtWidgets.QCheckBox("Create carto_label_MSA layer")
         layout.addWidget(self.chk_create_carto_label)
 
+        self.chk_create_carto_line = QtWidgets.QCheckBox("Create carto_line_MSA layer")
+        layout.addWidget(self.chk_create_carto_line)
+
         self.btn_generate = QtWidgets.QPushButton("Commit MSA Layer to Map")
         self.btn_generate.setStyleSheet(
             "font-weight: bold; background-color: #00557f; color: white; padding: 8px;"
@@ -548,6 +551,7 @@ class MSADockWidget(QtWidgets.QDockWidget):
             msa_id=existing_msa_id,
         )
         self._committed_by_feature[feature_key] = msa_id
+        self._maybe_create_carto_line_layer()
         self._maybe_create_carto_label_layer()
         iface.mapCanvas().refresh()
         iface.messageBar().pushMessage(
@@ -566,6 +570,20 @@ class MSADockWidget(QtWidgets.QDockWidget):
             iface.messageBar().pushMessage(
                 "qAeroChart",
                 "MSA committed, but the carto_label_MSA layer could not be created.",
+                level=MsgLevel.Warning,
+                duration=6,
+            )
+
+    def _maybe_create_carto_line_layer(self) -> None:
+        if not self.chk_create_carto_line.isChecked():
+            return
+        try:
+            self._layer_manager.create_carto_line_layer(iface)
+        except Exception as err:
+            log(f"MSA committed but carto_line_MSA creation failed: {err}", "ERROR")
+            iface.messageBar().pushMessage(
+                "qAeroChart",
+                "MSA committed, but the carto_line_MSA layer could not be created.",
                 level=MsgLevel.Warning,
                 duration=6,
             )

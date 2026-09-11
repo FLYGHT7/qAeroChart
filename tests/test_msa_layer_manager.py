@@ -80,3 +80,42 @@ def test_create_carto_label_layer_uses_exact_schema_and_group_order():
     project.addMapLayer.assert_called_once_with(layer, False)
     group.insertLayer.assert_called_once_with(0, layer)
     provider.addFeatures.assert_not_called()
+
+
+def test_carto_line_names_use_independent_family():
+    project = _project_with_names([
+        "carto_label_MSA_9", "carto_line_MSA", "carto_line_MSA_3",
+    ])
+
+    assert MsaLayerManager._next_carto_name(project, "carto_line_MSA") == "carto_line_MSA_4"
+
+
+def test_create_carto_line_layer_uses_exact_schema_and_group_order():
+    project = MagicMock()
+    project.mapLayers.return_value = {}
+    root = project.layerTreeRoot.return_value
+    group = root.findGroup.return_value = MagicMock()
+    layer = MagicMock()
+    provider = layer.dataProvider.return_value
+    manager = MsaLayerManager()
+
+    with (
+        patch("qAeroChart.core.msa_layer_manager.QgsProject") as qgs_project,
+        patch("qAeroChart.core.msa_layer_manager.QgsVectorLayer", return_value=layer) as qgs_layer,
+        patch("qAeroChart.core.msa_layer_manager.QgsField") as qgs_field,
+    ):
+        qgs_project.instance.return_value = project
+        result = manager.create_carto_line_layer(_make_iface())
+
+    assert result is layer
+    qgs_layer.assert_called_once_with("LineString?crs=EPSG:4326", "carto_line_MSA", "memory")
+    expected_fields = [
+        (('id', QVariant.String), {"len": 255, "prec": 0}),
+        (('txt_label', QVariant.String), {"len": 255, "prec": 0}),
+    ]
+    assert [(call.args, call.kwargs) for call in qgs_field.call_args_list] == expected_fields
+    provider.addAttributes.assert_called_once_with([qgs_field.return_value] * 2)
+    layer.updateFields.assert_called_once_with()
+    project.addMapLayer.assert_called_once_with(layer, False)
+    group.insertLayer.assert_called_once_with(0, layer)
+    provider.addFeatures.assert_not_called()

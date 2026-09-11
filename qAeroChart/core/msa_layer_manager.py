@@ -37,6 +37,7 @@ class MsaLayerManager:
     LAYER_NAME = "MSA Sectors"
     PREVIEW_LAYER_NAME = "MSA_Preview"
     CARTO_LABEL_BASE_NAME = "carto_label_MSA"
+    CARTO_LINE_BASE_NAME = "carto_line_MSA"
     CARTO_LABEL_FIELD_SPECS = (
         ("id", QVariant.String, 255, 0),
         ("txt_label", QVariant.String, 255, 0),
@@ -45,6 +46,10 @@ class MsaLayerManager:
         ("font_size", QVariant.Double, 10, 2),
         ("bold_text", QVariant.String, 25, 0),
         ("text-rotation", QVariant.Double, 10, 3),
+    )
+    CARTO_LINE_FIELD_SPECS = (
+        ("id", QVariant.String, 255, 0),
+        ("txt_label", QVariant.String, 255, 0),
     )
 
     _FIELDS = [
@@ -83,6 +88,23 @@ class MsaLayerManager:
         fields = [
             QgsField(name, field_type, len=length, prec=precision)
             for name, field_type, length, precision in self.CARTO_LABEL_FIELD_SPECS
+        ]
+        layer.dataProvider().addAttributes(fields)
+        layer.updateFields()
+        project.addMapLayer(layer, False)
+        self._add_to_group_top(project, layer)
+        log(f"MsaLayerManager: created empty '{layer_name}'")
+        return layer
+
+    def create_carto_line_layer(self, iface) -> QgsVectorLayer:
+        """Create a fresh, empty line layer for manually placed MSA cartography."""
+        project = QgsProject.instance()
+        layer_name = self._next_carto_name(project, self.CARTO_LINE_BASE_NAME)
+        crs = iface.mapCanvas().mapSettings().destinationCrs()
+        layer = QgsVectorLayer(f"LineString?crs={crs.authid()}", layer_name, "memory")
+        fields = [
+            QgsField(name, field_type, len=length, prec=precision)
+            for name, field_type, length, precision in self.CARTO_LINE_FIELD_SPECS
         ]
         layer.dataProvider().addAttributes(fields)
         layer.updateFields()
@@ -267,15 +289,19 @@ class MsaLayerManager:
 
     @classmethod
     def _next_carto_label_name(cls, project: QgsProject) -> str:
-        pattern = re.compile(rf"^{re.escape(cls.CARTO_LABEL_BASE_NAME)}(?:_(\d+))?$")
+        return cls._next_carto_name(project, cls.CARTO_LABEL_BASE_NAME)
+
+    @classmethod
+    def _next_carto_name(cls, project: QgsProject, base_name: str) -> str:
+        pattern = re.compile(rf"^{re.escape(base_name)}(?:_(\d+))?$")
         suffixes = []
         for layer in project.mapLayers().values():
             match = pattern.fullmatch(layer.name())
             if match:
                 suffixes.append(int(match.group(1) or 0))
         if not suffixes:
-            return cls.CARTO_LABEL_BASE_NAME
-        return f"{cls.CARTO_LABEL_BASE_NAME}_{max(suffixes) + 1}"
+            return base_name
+        return f"{base_name}_{max(suffixes) + 1}"
 
     def _apply_style(self, layer: QgsVectorLayer, *, is_preview: bool) -> None:
         try:
