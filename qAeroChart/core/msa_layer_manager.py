@@ -216,7 +216,7 @@ class MsaLayerManager:
         if add_to_group:
             self._add_to_group(project, layer)
         else:
-            project.layerTreeRoot().addLayer(layer)
+            project.layerTreeRoot().insertLayer(0, layer)
         self._apply_style(layer, is_preview=is_preview)
 
         log(f"MsaLayerManager: created '{layer_name}'")
