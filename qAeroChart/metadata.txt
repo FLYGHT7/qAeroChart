@@ -3,7 +3,7 @@ name=qAeroChart
 qgisMinimumVersion=3.34
 qgisMaximumVersion=4.99
 description=ICAO Aeronautical Chart Plugin - Create approach profiles and aeronautical charts
-version=0.1.0
+version=0.2.0
 author=FLYGHT7
 email=info@flyght7.com
 
@@ -22,6 +22,17 @@ icon=icons/icon.png
 experimental=True
 
 changelog=
+    Version 0.2.0:
+    - Swap Nominal Holding Left/Right radio button order
+    - Exporting Layer Paths info success should have hyperlink to open folder
+    - Consolidate export layer path options
+    - North Arrow show live rubberband
+    - Add qAeroChart menu to Layout
+    - MSA creation tool improvement for geometry error diagnosis
+    - Fix MSA preview layer order
+    - Add optional carto_label_MSA layer
+    - Add optional carto_line_MSA layer
+    - Add aeronautical_charts style to MSA Sectors
     Version 0.1.0:
     - bandit correction 
     - dock panel overflow bug 
