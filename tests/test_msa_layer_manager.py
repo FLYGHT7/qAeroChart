@@ -1,9 +1,97 @@
 """Tests for MSA layer creation and cartographic-label layer naming."""
+import hashlib
+from pathlib import Path
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 from qgis.PyQt.QtCore import QVariant
 
 from qAeroChart.core.msa_layer_manager import MsaLayerManager
+
+
+def test_bundled_qml_matches_issue_attachment():
+    path = Path(__file__).resolve().parents[1] / "qAeroChart" / "styles" / "MSA_Sectors_style.qml"
+    assert hashlib.sha256(path.read_bytes()).hexdigest() == (
+        "a99557113d4a1f19e171594b78b6ad7292dbefd328dea12dc441d6b9fbcc6f1f"
+    )
+
+
+def test_aeronautical_style_registered_without_changing_current_style():
+    layer = MagicMock()
+    layer.crs().authid.return_value = "EPSG:4326"
+    layer.fields.return_value = ["field"]
+    with (
+        patch("qAeroChart.core.msa_layer_manager.QgsVectorLayer") as vector_layer,
+        patch("qAeroChart.core.msa_layer_manager.QgsMapLayerStyle") as style,
+    ):
+        temporary = vector_layer.return_value
+        temporary.loadNamedStyle.return_value = ("", True)
+        MsaLayerManager()._add_aeronautical_style(layer)
+
+    vector_layer.assert_called_once_with("Polygon?crs=EPSG:4326", "MSA style", "memory")
+    temporary.dataProvider().addAttributes.assert_called_once_with(["field"])
+    temporary.updateFields.assert_called_once_with()
+    path = temporary.loadNamedStyle.call_args.args[0]
+    assert path.endswith("/styles/MSA_Sectors_style.qml")
+    style.return_value.readFromLayer.assert_called_once_with(temporary)
+    layer.styleManager().addStyle.assert_called_once_with("aeronautical_charts", style.return_value)
+    layer.styleManager().setCurrentStyle.assert_not_called()
+    layer.setRenderer.assert_not_called()
+    layer.setLabelsEnabled.assert_not_called()
+
+
+@pytest.mark.parametrize("failure", ["missing", "load", "registration"])
+def test_aeronautical_style_failure_keeps_default(failure):
+    layer = MagicMock()
+    with (
+        patch("qAeroChart.core.msa_layer_manager.Path.is_file", return_value=failure != "missing"),
+        patch("qAeroChart.core.msa_layer_manager.QgsVectorLayer") as vector_layer,
+        patch("qAeroChart.core.msa_layer_manager.log") as logger,
+    ):
+        temporary = vector_layer.return_value
+        temporary.loadNamedStyle.return_value = ("invalid QML", failure != "load")
+        layer.styleManager().addStyle.return_value = False
+        MsaLayerManager()._add_aeronautical_style(layer)
+
+    logger.assert_called_once()
+    assert logger.call_args.args[1] == "WARNING"
+    layer.styleManager().setCurrentStyle.assert_not_called()
+    layer.setRenderer.assert_not_called()
+    if failure != "registration":
+        layer.styleManager().addStyle.assert_not_called()
+
+
+@pytest.mark.parametrize("preview", [False, True])
+def test_only_new_committed_layers_get_aeronautical_style(preview):
+    manager = MsaLayerManager()
+    with (
+        patch("qAeroChart.core.msa_layer_manager.QgsProject") as project,
+        patch.object(manager, "_apply_style") as apply_style,
+        patch.object(manager, "_add_aeronautical_style") as add_style,
+    ):
+        project.instance().mapLayersByName.return_value = []
+        layer = manager._get_or_create(_make_iface(), "test", is_preview=preview, add_to_group=not preview)
+    apply_style.assert_called_once_with(layer, is_preview=preview)
+    if preview:
+        add_style.assert_not_called()
+    else:
+        add_style.assert_called_once_with(layer)
+
+
+def test_existing_layer_styles_are_preserved():
+    manager = MsaLayerManager()
+    existing = MagicMock()
+    with (
+        patch("qAeroChart.core.msa_layer_manager.QgsProject") as project,
+        patch.object(manager, "_schema_matches", return_value=True),
+        patch.object(manager, "_apply_style") as apply_style,
+        patch.object(manager, "_add_aeronautical_style") as add_style,
+    ):
+        project.instance().mapLayersByName.return_value = [existing]
+        assert manager.get_or_create_layer(_make_iface()) is existing
+    apply_style.assert_not_called()
+    add_style.assert_not_called()
 
 
 def _make_iface():

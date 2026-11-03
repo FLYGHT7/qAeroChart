@@ -12,12 +12,14 @@ from __future__ import annotations
 
 import re
 import uuid
+from pathlib import Path
 
 from qgis.core import (
     QgsFeature,
     QgsField,
     QgsFillSymbol,
     QgsGeometry,
+    QgsMapLayerStyle,
     QgsPalLayerSettings,
     QgsPointXY,
     QgsProject,
@@ -269,6 +271,8 @@ class MsaLayerManager:
         else:
             project.layerTreeRoot().insertLayer(0, layer)
         self._apply_style(layer, is_preview=is_preview)
+        if not is_preview:
+            self._add_aeronautical_style(layer)
 
         log(f"MsaLayerManager: created '{layer_name}'")
         return layer
@@ -302,6 +306,25 @@ class MsaLayerManager:
         if not suffixes:
             return base_name
         return f"{base_name}_{max(suffixes) + 1}"
+
+    def _add_aeronautical_style(self, layer: QgsVectorLayer) -> None:
+        style_path = Path(__file__).resolve().parent.parent / "styles" / "MSA_Sectors_style.qml"
+        if not style_path.is_file():
+            log(f"MsaLayerManager: aeronautical style file missing: {style_path}", "WARNING")
+            return
+
+        temporary = QgsVectorLayer(f"Polygon?crs={layer.crs().authid()}", "MSA style", "memory")
+        temporary.dataProvider().addAttributes(list(layer.fields()))
+        temporary.updateFields()
+        message, loaded = temporary.loadNamedStyle(str(style_path))
+        if not loaded:
+            log(f"MsaLayerManager: aeronautical style load failed: {message}", "WARNING")
+            return
+
+        style = QgsMapLayerStyle()
+        style.readFromLayer(temporary)
+        if not layer.styleManager().addStyle("aeronautical_charts", style):
+            log("MsaLayerManager: could not register aeronautical_charts style", "WARNING")
 
     def _apply_style(self, layer: QgsVectorLayer, *, is_preview: bool) -> None:
         try:
